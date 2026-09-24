@@ -4,14 +4,14 @@ Process configuration for agent systems. A project describes how it works — wh
 
 ## Status
 
-**Draft design, v2.1.** Nothing is implemented yet. The specification, the JSON Schema and the examples are drafts (milestone PC0). v2 answered the first refuter run on v1 and v2.1 the second run on v2; both runs are kept in [`reviews/`](reviews/). The decisions that belong to a person carry proposed defaults and open questions (spec §17).
+**Draft design, v2.1.** Nothing is implemented yet. The specification, the JSON Schema and the examples are drafts (milestone PC0). v2 answered the first refuter run on v1 and v2.1 the second run on v2; both runs are kept in [`reviews/`](reviews/). The decisions that belong to a person carry proposed defaults and open questions (spec §17). The specification and the track have Russian translations; the English files are canonical.
 
 ## Layout
 
 | Path | Content |
 | --- | --- |
-| [`spec/process-configuration.md`](spec/process-configuration.md) | the draft specification |
-| [`spec/track.md`](spec/track.md) | milestones PC0–PC3, demo playbooks, dependencies |
+| [`spec/process-configuration.md`](spec/process-configuration.md) ([RU](spec/process-configuration.ru.md)) | the draft specification |
+| [`spec/track.md`](spec/track.md) ([RU](spec/track.ru.md)) | milestones PC0–PC3, demo playbooks, dependencies |
 | [`reviews/`](reviews/) | refuter runs on the specification |
 | [`schema/playbook-v1.schema.json`](schema/playbook-v1.schema.json) | draft JSON Schema for `Playbook.json` |
 | [`examples/`](examples/) | today's task-board behaviour as a playbook, dev-cycle, bug-hunt, Scrum composed over dev-cycle, a cafe composed with bookkeeping, and a prove2.me-style formal process |
