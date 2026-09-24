@@ -15,7 +15,7 @@
   },
   "policy": {
     "goals": { "orchestrator_goal": { "cafe-orchestrator": "inventory-check", "bookkeeping.bookkeeper": "ledger" } },
-    "enable": { "tools": ["supplier.send-order"], "schedules": ["weekly-inventory"], "auto_spawn": true },
+    "enable": { "tools": ["supplier.send-order"], "schedules": ["weekly-inventory"], "auto_spawn": true, "skills": "audited", "standing_answers": false },
     "wip": { "per_state": { "purchase.approval": 5 }, "description": "No more than five orders wait for a manager at once: a limit on a human-owned state." },
     "signatures": {
       "require_for": ["approvals", "spending", "overrides", "delegations"],

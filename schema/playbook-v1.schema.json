@@ -1839,9 +1839,30 @@
                 }
               ],
               "description": "Tools whose commands the kernel may run: all bound tools, including tools that later template versions add, or the named ones. A tool that is not listed is disabled and the states it owns cannot be entered (spec section 8.5)."
+            },
+            "standing_answers": {
+              "type": "boolean",
+              "default": true,
+              "description": "Whether operators' standing answers (models.toml [answers]) may answer this project's ask exceptions for their own runs; false forbids them, open-ended ones included (spec section 9)."
+            },
+            "skills": {
+              "oneOf": [
+                {
+                  "const": "audited"
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/qualified"
+                  },
+                  "uniqueItems": true,
+                  "minItems": 1
+                }
+              ],
+              "description": "Skills agents may install into the project without a person: audited, any skill the Curator registry lists as audited, or the named skills. Absent: agents install nothing and a person installs or confirms the proposal. Skills from unknown sources are never covered (spec section 8.6)."
             }
           },
-          "description": "Project only: side effects a package may propose but only the project turns on: schedules, automatic spawns, tool invocations, relaxations (spec section 8.5)."
+          "description": "Project only: side effects a package may propose but only the project turns on: schedules, automatic spawns, tool invocations, relaxations, standing answers and skill installation by agents (spec sections 8.5, 8.6, 9). Authority-bearing: a change takes effect once a person confirms it (spec section 2.4)."
         },
         "signatures": {
           "type": "object",
@@ -1947,7 +1968,7 @@
                   "description": "A value per category; categories not named keep their default."
                 }
               ],
-              "description": "Whether a required signature must carry the user-verified flag (a FIDO2 signature with user verification, waggle section 4.4). Defaults, whenever the project sets a signature policy: required for approvals, relaxations, halts and delegations; if-supported for spending, overrides and human-transitions. A project sets one value for every category or a value per category; with the default min_assurance, if-supported admits Secure Enclave and other hardware-bound keys, never software keys (spec section 4.2)."
+              "description": "Whether a required signature must show that a person acted: a FIDO2 signature with user verification (waggle section 4.4), or a signature from an enrolled operator companion app key (waggle A1 section 19.5). Defaults, whenever the project sets a signature policy: required for approvals, relaxations, halts and delegations; if-supported for spending, overrides and human-transitions. A project sets one value for every category or a value per category; with the default min_assurance, if-supported admits Secure Enclave and other hardware-bound keys, never software keys (spec section 4.2)."
             }
           },
           "description": "Project only: which human acts need a waggle approver signature, at what key assurance, and whether the signature must show user verification (spec section 4.2). Signed board acts need the waggle amendment A1, implemented with CM2; until then the validator warns about each category in require_for that has no signable form (spec section 10). Granting or revoking a delegation (category delegations) is signed whenever the project sets a signature policy, listed or not."
@@ -1975,10 +1996,11 @@
                       "enum": [
                         "approvals",
                         "transitions",
-                        "relaxations"
+                        "relaxations",
+                        "installs"
                       ]
                     },
-                    "description": "approvals of a named human role; transitions out of named human-owned states; relaxations, the approval of ask exceptions (spec section 4.2)."
+                    "description": "approvals of a named human role; transitions out of named human-owned states; relaxations, the approval of ask exceptions; installs, the installation of audited skills from the Curator registry into the project (spec sections 4.2, 8.6). No delegation covers a confirmation of authority-bearing sections, of the operator's files or of a skill from an unknown source."
                   },
                   "role": {
                     "$ref": "#/$defs/qualified",
@@ -2102,10 +2124,11 @@
                       "enum": [
                         "approvals",
                         "transitions",
-                        "relaxations"
+                        "relaxations",
+                        "installs"
                       ]
                     },
-                    "description": "approvals of a named human role; transitions out of named human-owned states; relaxations, the approval of ask exceptions (spec section 4.2)."
+                    "description": "approvals of a named human role; transitions out of named human-owned states; relaxations, the approval of ask exceptions; installs, the installation of audited skills from the Curator registry into the project (spec sections 4.2, 8.6). No delegation covers a confirmation of authority-bearing sections, of the operator's files or of a skill from an unknown source."
                   },
                   "role": {
                     "$ref": "#/$defs/qualified",
