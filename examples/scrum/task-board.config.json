@@ -11,9 +11,8 @@
       "by_task_class": { "docs": { "where": "local", "commands": [] } }
     },
     "landing": {
-      "where": ["local", "hosted"],
-      "commands": ["make test-smoke"],
-      "hosted": { "provider": "github" }
+      "where": "local",
+      "commands": ["make test"]
     }
   }
 }

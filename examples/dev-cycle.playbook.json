@@ -2,7 +2,7 @@
   "$schema": "../schema/playbook-v1.schema.json",
   "schema_version": 1,
   "name": "dev-cycle",
-  "description": "Software delivery with a producer-reviewer loop, a refuter on specifications and decisions as board memory. Change Request work is reviewed only after publication and waits in accepted until its story integrates; inline work without a Change Request is reviewed and finishes directly, or skips review when its review field says none, so the delivery invariants hold (spec section 6.10). The check set handoff gates review and the check set landing gates the story's integration (spec section 6.12). A blocked element records why, and repeated blocks escalate to a person. Template of the curator-playbook-dev-cycle package (skills/orchestrator/data/playbook.json).",
+  "description": "Software delivery with a producer-reviewer loop, a refuter on specifications and decisions as board memory. Change Request work is reviewed only after publication and waits in accepted until its story integrates; inline work without a Change Request is reviewed and finishes directly, or skips review when its review field says none, so the delivery invariants hold (spec section 6.10). For Change Request work the check set handoff gates review and the check set landing gates the story's integration; inline work runs no suite (spec section 6.12). A blocked element records why and where it was blocked, resumes there, and repeated blocks escalate to a person. Template of the curator-playbook-dev-cycle package (skills/orchestrator/data/playbook.json).",
   "root": "orchestrator",
   "roles": {
     "orchestrator": { "skill": "dev-orchestrator", "capability": "orchestrator" },
@@ -57,12 +57,17 @@
           "type": "enum",
           "values": ["required", "light", "none"],
           "default": "required",
-          "description": "Review level; policy.review.default seeds it. none lets inline work finish on the producer's outcome; work under a Change Request always needs a reviewer's acceptance (invariants 2 and 3)."
+          "description": "Review level, written at creation from policy.review.default and set afterwards by the orchestrator or a person, never by the producer: a field the workflow's guards read is authority-bearing (spec section 5.2). none lets inline work finish on the producer's outcome without review; any level may still be reviewed, and work under a Change Request always needs a reviewer's acceptance (invariants 2 and 3)."
         },
         "block_kind": {
           "type": "enum",
           "values": ["dependency", "needs-input", "capability", "transient"],
-          "description": "Why the element is blocked; set on every entry into blocked."
+          "description": "Why the element is blocked. Required on every entry into blocked and cleared by the kernel on exit, so a reason is never read for the next block."
+        },
+        "blocked_from": {
+          "type": "enum",
+          "values": ["open", "development", "review"],
+          "description": "The state the element was blocked from. The kernel writes it on entry into blocked (record_source) and clears it on exit; the resume routes read it, and runs never write it (spec sections 5.2, 6.1)."
         }
       },
       "estimates": [
@@ -74,7 +79,7 @@
       "parents": ["epic", "story"],
       "workflow": "research",
       "fields": {
-        "review": { "type": "enum", "values": ["required", "light", "none"], "default": "required", "description": "none: the outcome closes the research without a review." }
+        "review": { "type": "enum", "values": ["required", "light", "none"], "default": "required", "description": "none: the outcome closes the research without a review. Set by the orchestrator or a person, never by the researcher (spec section 5.2)." }
       }
     },
     "design-task": { "parents": ["story"], "workflow": "spec" },
@@ -159,7 +164,9 @@
         "blocked": {
           "owner": "orchestrator",
           "requires": [{ "guard": "fields.present", "fields": ["block_kind"] }],
-          "description": "Work cannot continue. block_kind says why: a dependency on other work, input only a person can give, a missing capability, or a transient failure."
+          "record_source": "blocked_from",
+          "clear_on_exit": ["block_kind", "blocked_from"],
+          "description": "Work cannot continue. block_kind says why: a dependency on other work, input only a person can give, a missing capability, or a transient failure. The kernel records the state the element came from and clears both fields on exit."
         },
         "done": { "terminal": true },
         "closed": { "terminal": true, "resolution": ["wont-do", "duplicate", "obsolete"] }
@@ -173,11 +180,10 @@
             "checklist.complete",
             "outcome.present",
             "delivery.review-ready",
-            { "guard": "delivery.checks-passed", "set": "handoff" },
-            { "guard": "field", "name": "review", "in": ["required", "light"] }
+            { "guard": "delivery.checks-passed", "set": "handoff" }
           ],
           "actions": ["spawn.owner"],
-          "description": "Stricter than invariant 3: work under a Change Request is reviewed only after its revision is published; inline work without one is reviewed directly. The check set handoff must pass on what is handed off."
+          "description": "Stricter than invariant 3: work under a Change Request is reviewed only after its revision is published, and only with the check set handoff's evidence for that revision; inline work without one is reviewed directly and runs no suite. Any review level may be reviewed."
         },
         {
           "from": "development",
@@ -186,11 +192,10 @@
             { "guard": "field", "name": "review", "is": "none" },
             "checklist.complete",
             "outcome.present",
-            { "guard": "delivery.checks-passed", "set": "handoff" },
             "delivery.cr-absent",
             "delivery.commit-acknowledged"
           ],
-          "description": "Inline work whose review level is none finishes on the producer's outcome. Work under a Change Request cannot take this route (delivery.cr-absent), so it still needs a reviewer's acceptance."
+          "description": "Inline work whose review level is none finishes on the producer's outcome; like all inline work it runs no check set, as today. Work under a Change Request cannot take this route (delivery.cr-absent), so it still needs a reviewer's acceptance."
         },
         {
           "from": "review",
@@ -214,11 +219,26 @@
           "from": ["open", "development", "review"],
           "to": "blocked",
           "limit": { "max": 3, "then": "escalated" },
-          "description": "Every entry records block_kind (the state requires it). The fourth block of one element goes to the operator instead."
+          "description": "Every entry records block_kind (the state requires it), and the kernel records the source state. The limit keeps one counter per element for this transition, whichever state it leaves: the fourth block of one element goes to the operator instead."
         },
-        { "from": "blocked", "to": "open", "on": { "event": "blockers.terminal" }, "description": "A dependency block releases when its last blocker ends." },
-        { "from": "blocked", "to": "development", "guards": ["blockers.clear"], "actions": ["spawn.owner"], "description": "The orchestrator resumes the work once the cause is gone." },
-        { "from": "blocked", "to": "escalated", "description": "Input only a person can give, or a capability nobody has." },
+        {
+          "from": "blocked",
+          "to": "open",
+          "on": { "event": "blockers.terminal" },
+          "guards": [{ "guard": "field", "name": "blocked_from", "is": "open" }],
+          "description": "A dependency block releases automatically when its last blocker ends, back to the state the element was blocked from."
+        },
+        { "from": "blocked", "to": "development", "on": { "event": "blockers.terminal" }, "guards": [{ "guard": "field", "name": "blocked_from", "is": "development" }], "actions": ["spawn.owner"] },
+        { "from": "blocked", "to": "review", "on": { "event": "blockers.terminal" }, "guards": [{ "guard": "field", "name": "blocked_from", "is": "review" }], "actions": ["spawn.owner"] },
+        {
+          "from": "blocked",
+          "to": "open",
+          "guards": [{ "guard": "field", "name": "blocked_from", "is": "open" }],
+          "description": "The orchestrator resumes the element where it was blocked once the cause is gone. A block from open returns to open, so open -> development still applies its estimate and assignee guards. This manual resume and the automatic release above are two transitions (spec section 6.2)."
+        },
+        { "from": "blocked", "to": "development", "guards": [{ "guard": "field", "name": "blocked_from", "is": "development" }, "blockers.clear"], "actions": ["spawn.owner"] },
+        { "from": "blocked", "to": "review", "guards": [{ "guard": "field", "name": "blocked_from", "is": "review" }, "blockers.clear"], "actions": ["spawn.owner"] },
+        { "from": "blocked", "to": "escalated", "description": "Input only a person can give, or a capability nobody has: the orchestrator hands the element to the operator." },
         { "from": "*", "to": "closed" }
       ]
     },

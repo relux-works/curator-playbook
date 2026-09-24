@@ -132,9 +132,9 @@
           "from": "integrating",
           "to": "done",
           "via": "integrate",
-          "guards": ["blockers.clear", "delivery.integration-evidence"],
+          "guards": ["blockers.clear", { "guard": "delivery.integration-evidence", "set": "landing" }],
           "actions": ["delivery.close-checkpointed-siblings"],
-          "description": "IntegrationAuthorized (consistency.go:169-172); every status change also passes the blockers check (consistency.go:176; validation.go:46-58)."
+          "description": "IntegrationAuthorized (consistency.go:169-172); every status change also passes the blockers check (consistency.go:176; validation.go:46-58). The evidence is the landing check set's, today's landing-gate suite (spec section 6.12); a project that defines no landing set, in its checks or in the legacy validation key, refuses integration as today."
         },
         { "from": "integrating", "to": "done", "via": "integrate_external", "guards": ["blockers.clear", "delivery.external-integration-evidence"], "description": "ExternalIntegrationAuthorized." },
         { "from": "integrating", "to": "done", "via": "restore_done", "guards": ["blockers.clear", "delivery.restore-authorized"], "description": "IntegrationRestoreAuthorized (internal/integration/restore_done.go:85, landed_apply.go:93)." },

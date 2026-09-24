@@ -4,7 +4,7 @@ Process configuration for agent systems. A project describes how it works — wh
 
 ## Status
 
-**Draft design, v3.** Nothing is implemented yet. The specification, the JSON Schema and the examples are drafts (milestone PC0). v2 answered the first refuter run on v1 and v2.1 the second run on v2; both runs are kept in [`reviews/`](reviews/). v3 applies the operator's decisions of 2026-09-24 (spec §17.2); after a refuter pass on the sections v3 changed, the specification is frozen. The Russian translations of the specification and the track still describe v2.1 and follow after that pass; the English files are canonical.
+**Draft design, v3.1.** Nothing is implemented yet. The specification, the JSON Schema and the examples are drafts (milestone PC0). v2 answered the first refuter run on v1 and v2.1 the second run on v2; v3 applies the operator's decisions of 2026-09-24 (spec §17.2), and v3.1 answers the third run on v3 (spec §21). All three runs are kept in [`reviews/`](reviews/). The specification is frozen once the operator decides P2 and P3 (spec §17.3). The Russian translations of the specification and the track still describe v2.1 and follow the freeze; the English files are canonical.
 
 ## Layout
 
