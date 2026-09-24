@@ -42,7 +42,7 @@
       "workflow": "leaf",
       "fields": {
         "task_class": { "type": "enum", "values": ["code", "metadata", "docs", "research"], "default": "code", "description": "pkg/board/types.go:136-141." },
-        "review": { "type": "enum", "values": ["required", "light", "none"], "default": "required", "description": "Review policy; empty normalizes to required (types.go:106-133)." }
+        "review": { "type": "enum", "values": ["required", "light", "none"], "default": "required", "description": "Review policy; empty normalizes to required (types.go:106-133). No route of this permissive default selects on it; the ledger and the research landing read it (spec section 14, point 7)." }
       },
       "estimates": [{ "name": "points", "scale": "fibonacci", "description": "set_estimate(scale=fibonacci); new records must be estimated before development (pkg/board/validation.go:60-68)." }]
     },

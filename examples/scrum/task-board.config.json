@@ -1,0 +1,19 @@
+{
+  "mode": "local",
+  "local": { "board_dir": ".task-board" },
+  "spawn": {
+    "worktree_isolation": { "integration_base_branch": "main" }
+  },
+  "checks": {
+    "handoff": {
+      "where": "local",
+      "commands": ["make test-fast"],
+      "by_task_class": { "docs": { "where": "local", "commands": [] } }
+    },
+    "landing": {
+      "where": ["local", "hosted"],
+      "commands": ["make test-smoke"],
+      "hosted": { "provider": "github" }
+    }
+  }
+}

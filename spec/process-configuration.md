@@ -1,16 +1,14 @@
 # Process configuration: specification
 
-Status: **DRAFT v2.1**, 2026-09-24. Not normative. Roadmap: `wiki/roadmap/ecosystem-roadmap.md` (process-configuration line). Track: [`track.md`](track.md). Schema: [`../schema/playbook-v1.schema.json`](../schema/playbook-v1.schema.json). Examples: [`../examples/`](../examples/).
+Status: **DRAFT v3**, 2026-09-24. Not normative until frozen after the refuter pass on the sections v3 changed. Roadmap: `wiki/roadmap/ecosystem-roadmap.md` (process-configuration line). Track: [`track.md`](track.md). Schema: [`../schema/playbook-v1.schema.json`](../schema/playbook-v1.schema.json). Examples: [`../examples/`](../examples/).
 
 A team's process is code today. task-board's element types, statuses, gates and roles are compiled into its kernel, so a team that works differently — or a cafe ordering supplies, or a group formalizing a proof — cannot describe its process without changing the board. This specification answers one question: how does a project state who does what, which kinds of work exist and how each moves, in one file that every teammate can share and a validator can check before anything runs? It covers that file, its schema, extension and composition, distribution through Curator, model needs, and validation. The agent loop, an always-on scheduler and the goal ledger stay outside it (§1).
 
-v2.1 answers the second refuter run on v2 ([`../reviews/2026-09-24-refuter-v1.md`](../reviews/2026-09-24-refuter-v1.md)): 33 new findings, the 14 findings of the first run that v2 left partly or wholly open, and eight decisions that belong to a person, H1–H8. §19 maps each of them to its resolution or to an open question; §18 does the same for the first run ([`../reviews/2026-09-24-refuter-v0.md`](../reviews/2026-09-24-refuter-v0.md)), which v2 answered. Three markers say how settled a statement is:
+v3 applies the operator's decisions of 2026-09-24 on every point v2.1 left to a person. The operator confirmed the author's resolutions of both refuter runs, decided the proposed defaults H1, H2, H3, H5 and H7 (H2 more strictly than proposed), and added standing answers, speed needs, field conditions, work-in-progress limits and check sets. §17 lists the decisions and what stays open, and §20 maps each decision to the sections it changed. §19 and §18 keep the mapping of the second refuter run ([`../reviews/2026-09-24-refuter-v1.md`](../reviews/2026-09-24-refuter-v1.md)) and the first ([`../reviews/2026-09-24-refuter-v0.md`](../reviews/2026-09-24-refuter-v0.md)).
 
-- *decided (2026-09-24)*: the operator confirmed it;
-- *proposed*: the author's resolution, which needs no new decision;
-- **PROPOSED default (Hn)**: a default for one of the decisions H1–H8 that belongs to a person, applied here until the operator decides, with its question in §17.
+Every statement in this revision is *decided (2026-09-24)* unless §17.3 lists it as open or it is marked *future*.
 
-Supersedes the roles-and-routes model of `skill-project-management/.specs/drafts/playbooks.md`: the core object is no longer a list of roles with routes between them but entity types with workflows whose states are owned by roles. Related: `skill-project-management/.specs/drafts/agent-selection.md` (selection layers; §9 amends its §3, §7 and §8), `skill-project-management/.specs/drafts/launch-profiles.md` (LP; §9 amends D9 for the case without an operator file), curator-spec `protocol/skillfile-sources.md` (Skillfile schema 2, package identities), `protocol/core.md` §3, §4.1 and §4.4 (execution boundary, command shims, skill dependencies), `protocol/environments.md` (package-influence boundary), `profiles/manager.md` (scope precedence), `waggle/spec/waggle.md` (approver signatures, hand-off offers, scope leases, the roster at a pinned revision).
+Supersedes the roles-and-routes model of `skill-project-management/.specs/drafts/playbooks.md`: the core object is no longer a list of roles with routes between them but entity types with workflows whose states are owned by roles. Related: `skill-project-management/.specs/drafts/agent-selection.md` (selection layers; §9 amends its §3, §7 and §8), `skill-project-management/.specs/drafts/launch-profiles.md` (LP; §9 amends D9 for the case without an operator file, §2.3 moves D2's runtime catalog), curator-spec `protocol/skillfile-sources.md` (Skillfile schema 2, package identities), curator-spec issue #91 (on-demand skills and the skills launch channel, §8.1), `protocol/core.md` §3, §4.1 and §4.4 (execution boundary, command shims, skill dependencies), `protocol/environments.md` (package-influence boundary), `profiles/manager.md` (scope precedence), `waggle/spec/waggle.md` (approver signatures, hand-off offers, scope leases, the roster at a pinned revision).
 
 ---
 
@@ -19,15 +17,16 @@ Supersedes the roles-and-routes model of `skill-project-management/.specs/drafts
 - A project describes how it works in one file, `Playbook.json`, in its root beside `Skillfile.json`. *decided*
 - The file has four core parts: **roles** (aliases bound to role skills, people, tools or other processes), **entities** (element types, nesting, fields), **workflows** (states and transitions) and **policy**. *decided*
 - **Each element has exactly one owner in each state; a state may admit several roles and assignment picks one**; helpers work for the owner. *decided (H8)*
-- **Playbooks are data only.** They never name a program, script, webhook or URL. Everything that executes is a skill installed through Curator: a tool is a command that a provider skill exports, and the orchestrator skill reaches it through a runtime dependency narrowed to that command. Schedules, automatic spawns and tool invocations a package proposes take effect only when the project enables them. *decided; the enable gate for tools is a **PROPOSED default (H3)***
-- **Authority stays outside the model.** An agent run never moves work out of a human-owned state, never records a human approval and never posts a tool or external event. Risky human acts need a waggle approver signature that shows a person acted. *decided; signature details are **PROPOSED defaults (H7)***
-- **The process in force is the committed one.** The kernel reads the project's `Playbook.json` at a pinned revision, never from the working tree, so no session can edit its own authority. **PROPOSED default (H1)**
+- **Playbooks are data only.** They never name a program, script, webhook or URL. Everything that executes is a skill installed through Curator: a tool is a command that a provider skill exports, and the orchestrator skill reaches it through a runtime dependency narrowed to that command. Schedules, automatic spawns and tool invocations a package proposes take effect only when the project enables them; a tool runs only when the project lists it. *decided*
+- **Authority stays outside the model.** An agent run never moves work out of a human-owned state, never records a human approval and never posts a tool or external event. Risky human acts need a waggle approver signature that shows a person acted. *decided*
+- **The process in force is the committed one.** The kernel reads the project's `Playbook.json` from the head of the default branch of the repository that owns the board, never from the working tree, so no session can edit its own authority. *decided*
 - A project **extends** one published playbook and writes only its differences, and **composes** several, binding their slots; its `extends`/`uses` is its list of admitted playbooks. *decided*
-- **Roles are skills.** A published playbook is a repository whose `skills/` collection holds the root orchestrator, whose data carries the template, and one skill per role. One Skillfile schema 2 selector installs the whole process; tool providers sit outside the collection. *decided*
-- Roles state **needs** in agent-selection's vocabulary, never models or efforts; the operator's private file binds models and effort; only the project relaxes a hard need permanently. *decided; the vocabulary is a **PROPOSED default (H5)***
+- **Roles are skills.** A published playbook is a repository whose `skills/` collection holds the root orchestrator, whose data carries the template, and one skill per role. One Skillfile schema 2 selector installs the whole process; tool providers sit outside the collection. Role skills are installed on demand and reach only the launches that run their role. *decided*
+- Roles state **needs** — requirements and preferences in one vocabulary, speed included — never models or efforts; the operator's private files bind models and effort; only the project relaxes a hard need permanently, and an operator may answer a temporary relaxation in advance. *decided*
+- **Guards read field values**, so review levels and thresholds are routes; **policy bounds work in progress**; and **check sets** — local, on the project's CI, or both — supply delivery evidence. *decided*
 - A static **validator** (`playbook validate`) checks a configuration before anything runs, split into portable checks and machine checks. *decided*
 - Development machinery is a **delivery module** whose invariants bind to element state and hold whatever a playbook says. *decided*
-- Until the main loop exists, `task-board tick` fires timers, schedules, expiries and tool invocations. *decided*
+- Until the main loop exists, `task-board tick`, called every minute by a user-level system timer, fires timers, schedules, expiries and tool invocations. *decided*
 - Today's task-board is itself a playbook ([`default.playbook.json`](../examples/default.playbook.json)); PC1 makes the kernel read it with identical behaviour or documented differences, and the first demos run right after PC1. *decided (H6)*
 
 ## 1. Goals and non-goals
@@ -40,16 +39,19 @@ Goals:
 4. Processes compose: the output of one can be the input of another, and a cadence (Scrum) can sit over a delivery process.
 5. A configuration can never make an installed package execute something the project did not admit.
 
-Non-goals of this revision: the orchestrator's agent loop; an always-on scheduler (the main loop, later; until then §6.9); the goal system itself (`board-goal-v2` stays in task-board; the configuration only names each orchestrator's goal type, §6.7); the storage format of board elements; the waggle amendment this design depends on (§17, H7), which belongs to the waggle specification.
+Non-goals of this revision: the orchestrator's agent loop; an always-on scheduler (the main loop, later; until then §6.9); the goal system itself (`board-goal-v2` stays in task-board; the configuration only names each orchestrator's goal type, §6.7); the storage format of board elements; the waggle amendment this design depends on (§17), which is written in the waggle specification.
 
 ## 2. Files and responsibilities
 
-### 2.1 `Playbook.json` and `Skillfile.json`: two files, two jobs *(decided)*
+### 2.1 The project's files *(decided)*
 
 | File | Answers | Read by | Carries |
 | --- | --- | --- | --- |
-| `Skillfile.json` | what is installed | Curator | skill names, sources, versions (tags, revisions) |
-| `Playbook.json` | how the project works | the board (task-board today) and the validator | admitted playbooks, role aliases bound to skill names, tool bindings, people, event signer groups, entities, workflows, policy |
+| `Skillfile.json` | what is installed | Curator | skill names, sources, versions (tags, revisions), activation |
+| `Playbook.json` | how the project works | the board (task-board today) and the validator | admitted playbooks, role aliases bound to skill names, tool bindings, people, event signer groups, entities, workflows, policy: review, work in progress, version control, signatures, data |
+| `task-board.config.json` | where and with what the board runs | the board | board location, integration base branch, board repository, check sets (§6.12), team runtime names |
+
+All three are committed. Process rules that sit in `task-board.config.json` today move to `Playbook.json`: the version-control policy (commit confirmation and time) and the per-board run limit `spawn.max_parallel`, which becomes `policy.wip.board` (§6.8); the old keys are read for one release with a warning *(decided 2026-09-24)*. Model choices leave both committed files for the operator's private files, and so do machine limits (§2.3).
 
 `Playbook.json` never carries a version, a URL or a source; `Skillfile.json` never carries a role, a state or a transition. They meet only through skill names. When a role or tool names a skill that is not installed, the validator reports it with the fix: the `curator add` invocation for a named skill, or the Skillfile selector to add (§8). Installing (Skillfile) and using (Playbook) are two edits with two meanings, like a dependency in `go.mod` and its `import`; a helper such as `playbook bind <alias> <skill>` can make both.
 
@@ -64,9 +66,18 @@ Without Curator, role skills can be copied into the harness skill directories by
 - Keys starting with `x-` are extensions; the kernel ignores them.
 - Names of roles, entity types, workflows and states are kebab-case identifiers; field names are snake_case (`task_class`), matching today's element fields.
 
-### 2.3 The operator's private file *(decided 2026-09-24; the case without a file is a **PROPOSED default (H2)**)*
+### 2.3 The operator's private files *(decided 2026-09-24)*
 
-Concrete models, harness bindings and effort live in the operator's private file, `~/.curator/models.toml` (wiki `decisions.md`, operator file). It is TOML, like `runtimes.toml` and `engines.toml`, because people edit it by hand; it is never committed.
+What belongs to one operator and one machine lives in the operator's private files under `~/.curator/`, never in a repository:
+
+| File | Holds | Read by |
+| --- | --- | --- |
+| `models.toml` | role bindings to models and efforts, admitted models and billing classes, time windows, standing answers to `ask` | the selection resolver (§9) |
+| `runtimes.toml` | this machine's runtime bindings (harness binaries, accounts, homes) and its capacity: parallel runs, concurrent check sets, rate-limit ladders | the launch plane; the kernel, for machine capacity |
+| `engines.toml` | local inference engines and their models | curator-inference-manager |
+| `network.toml` | network profiles | curator-network-profiles |
+
+They are TOML because people edit them by hand, and they are never committed. Keeping them together amends LP D2, which placed runtime bindings in `$XDG_CONFIG_HOME/agents-management/runtimes.toml`, and the network-profiles specification, which placed its profiles in `network.json` under `$XDG_CONFIG_HOME`. Which commands add and remove entries is open (§17.3).
 
 ```toml
 [bindings]
@@ -76,31 +87,39 @@ Concrete models, harness bindings and effort live in the operator's private file
 "@producer"           = { run = "codex/gpt-6-luna", effort = "high..max" }
 
 [allow]
-models = ["codex/*", "claude/claude-opus-5-5", "local/qwen3.6-27b"]
+models  = ["codex/*", "claude/claude-opus-5-5", "local/qwen3.6-27b"]
+billing = ["subscription", "local"]
 
 [windows]
 "local/qwen3.6-27b" = "22:00-07:00"
+
+[answers]
+"dev-cycle/reviewer" = { relax = ["not_same_publisher_as"] }
+"*/refuter"          = { relax = ["context_window"], projects = ["github.com/relux-works/skill-project-management"], until = "2026-12-31" }
 ```
 
-- One `[bindings]` table; keys go from specific to general: `<playbook>/<role>`, then `*/<role>`, then `@<capability>`. The most specific matching key wins. *decided*
-- `run` is one `<runtime>/<model>` or an ordered array of candidates; a pattern such as `codex/*` matches every registry row of that runtime. The resolver takes the first candidate that is admitted, available and satisfies the role's needs; a candidate that is unavailable moves the choice to the next one. The selection records which candidate won and why each earlier one did not. *decided*
-- `effort` is one value or a range (`"medium..high"`). A project floor (`policy.effort_floor`, §6.8) narrows it from below per model row (§9); the selection records the effort it used. *decided*
-- `[allow]` narrows which models may run at all; `[windows]` limits when. *proposed (the shape beyond `[bindings]`)*
-- A file that exists but cannot be read or parsed refuses every selection: a read failure is never headroom (LP D9). *proposed*
-- **Without the file** the resolver chooses automatically, never wider than the project admits and the machine offers, and explains its choice (§9). **PROPOSED default (H2)**
+- One `[bindings]` table; keys go from specific to general: `<playbook>/<role>`, then `*/<role>`, then `@<capability>`. The most specific matching key wins.
+- `run` is one `<runtime>/<model>` or an ordered array of candidates; a pattern such as `codex/*` matches every registry row of that runtime. The resolver takes the first candidate that is admitted, available and satisfies the role's needs; a candidate that is unavailable moves the choice to the next one. The selection records which candidate won and why each earlier one did not.
+- `effort` is one value or a range (`"medium..high"`). A project floor (`policy.effort_floor`, §6.8) narrows it from below per model row (§9); the selection records the effort it used.
+- `[allow]` narrows which models may run at all, and `billing` lists the billing classes this operator pays for. Only this file admits `metered` billing: a project may narrow billing classes, never widen them (§9). `[windows]` limits when a model may run.
+- `[answers]` holds standing answers to `ask` (§9). Keys follow `[bindings]`; `relax` names the requirement terms the answer relaxes; `projects` and `until` bound it. A standing answer applies to this operator's own runs only and never widens `[allow]`.
+- A file that exists but cannot be read or parsed refuses every selection: a read failure is never headroom (LP D9).
+- **Without `models.toml`** the resolver chooses automatically, never chooses a metered runtime, and explains its choice (§9).
+- The model keys of today's `task-board.config.json` — `spawn.ceilings`, per-role defaults, `workload_classes` and `preferred_agentic_system` — move to `models.toml`. Until the file exists they are read as a legacy operator layer with a warning, and one command writes them into the file.
+- Machine limits never sit in a committed file, because teammates run different machines: parallel runs, concurrent check sets and rate-limit ladders live in `runtimes.toml`. The process's own limits on work in progress are `policy.wip` (§6.8).
 - Every choice, from the file or not, must satisfy the role's needs (§9), else `on_unmet` applies.
-- Tool bindings, people and event signers are not in this file: they are project facts and live in `Playbook.json` (§4.2, §8.5).
+- Tool bindings, people and event signers are not in these files: they are project facts and live in `Playbook.json` (§4.2, §8.5).
 
-### 2.4 Which revision is in force — **PROPOSED default (H1)**
+### 2.4 Which revision is in force *(decided 2026-09-24, H1)*
 
 The orchestrator's session works in the project checkout with ordinary file tools. If the kernel read `Playbook.json` from the working tree, one unreviewed edit could drop a signature requirement, a hard need or a human owner (refuter v1, N1). waggle meets the same problem for its roster by reading it "at a pinned revision" (waggle §3). So:
 
-- The kernel reads the project's `Playbook.json` from the committed file at a pinned revision: the head of the branch the current Story integrates into (its integration base), or of the default branch when no Story is in scope. It never reads the working tree.
-- It records that revision and the file's semantic digest on the board at every load, beside the resolved templates' identities and digests (§7.1).
+- The kernel reads the project's `Playbook.json` from the committed file at the head of the default branch of the repository that owns the board, whatever Story is in scope. It never reads the working tree. One board therefore has one process in force at a time, and no branch or fork runs rules of its own.
+- It records that revision, the **pinned revision** the rest of this specification refers to, and the file's semantic digest on the board at every load, beside the resolved templates' identities and digests (§7.1).
 - The authority-bearing sections are `people`, `services`, `policy.signatures`, `policy.enable`, `policy.data`, role `needs` and `on_unmet`, `tools`, and `extends`/`uses`. State owners and guards also decide who may move work, so the whole file follows the same rule rather than a list of keys.
-- An edit takes effect when it lands, which makes a change to the process a change reviewed like code. The price is that trying a process change needs a landing; `playbook validate` and previews read the working tree for that, and the kernel never does.
-- When the project has a waggle roster, the kernel also verifies the pinned commit's signature against the roster at that revision.
-- A project that is not a git repository has no pinned revision: the kernel reads the file as it is and reports that its authority policy is a guardrail only.
+- An edit takes effect when it lands on the default branch, which makes a change to the process a change reviewed like code. The price is that trying a process change needs a landing. `playbook validate`, previews and a visual constructor read the working tree for that; the kernel never does.
+- When the project has a waggle roster, the kernel also verifies the signature of the commit it read against the roster at that revision.
+- A project that is not a git repository has no default branch: the kernel reads the file as it is and warns that its authority policy is a guardrail only.
 
 ## 3. Document structure
 
@@ -128,7 +147,7 @@ The orchestrator's session works in the project checkout with ordinary file tool
 }
 ```
 
-`name` is required for a published template and optional in a project file. `extends` and `uses` are covered in §7, `slots` and `bind` in §7.2, `tools` in §8.5, `people` and `services` in §4.2, `events` and `schedules` in §6.9. Keys that only a project may set — `people`, `services`, `policy.enable`, `policy.effort_floor`, `policy.signatures`, `policy.data`, and a `null` that disables a tool — are ignored with a warning when they appear in a template. A template may bind a tool only under the rule of §8.5.
+`name` is required for a published template and optional in a project file. `extends` and `uses` are covered in §7, `slots` and `bind` in §7.2, `tools` in §8.5, `people` and `services` in §4.2, `events` and `schedules` in §6.9. Keys that only a project may set — `people`, `services`, `policy.enable`, `policy.effort_floor`, `policy.signatures` and `policy.data` — are ignored with a warning when they appear in a template. A template may bind a tool only under the rule of §8.5.
 
 ## 4. Roles
 
@@ -147,7 +166,7 @@ The orchestrator's session works in the project checkout with ordinary file tool
 }
 ```
 
-### 4.2 Owner kinds and who may move work *(decided; details marked)*
+### 4.2 Owner kinds and who may move work *(decided)*
 
 | `kind` | Performs the work | Bound by | Fires the declared exits of a state it owns |
 | --- | --- | --- | --- |
@@ -156,7 +175,7 @@ The orchestrator's session works in the project checkout with ordinary file tool
 | `tool` | a command exported by a provider skill installed through Curator (§8.5) | `tool`: a name the `tools` map binds | the kernel's tool executor, from its own invocation: `tool.passed`, `tool.failed` (§6.11) |
 | `process` | another process | `process`: a process slot the project binds (§6.5) | the kernel, when the received element returns: `process.returned` |
 
-Four rules complete the table *(proposed)*:
+Four rules complete the table:
 
 1. **Automatic exits leave any state.** A transition with `on` — a timer, a kernel or module event, a declared external event — may leave a state of any owner kind. The kernel fires it (actor `kernel` or `event`); no agent does.
 2. **People may override tools and processes.** A human actor (a principal of the project's `people`) may fire the declared manual exits of a tool- or process-owned state, typically a cancel. The act is recorded as an override, a running tool invocation is cancelled, and policy may require a signature for it (`overrides`).
@@ -165,9 +184,9 @@ Four rules complete the table *(proposed)*:
 
 **Actor classes.** Every transition records its actor: `run` (a spawned run with its role), `session` (a hosted orchestrator session), `human` (a CLI action outside any run and session, or a waggle signature), `kernel` (automatic transitions, tool invocation, timers) or `event` (a signed external event, §6.9). An agent run or session never fires a transition out of a human-owned state, never records a human approval and never posts a tool or external event.
 
-`human` is defined by absence today, so an untracked `curator run` session, a bare harness binary and a run that clears `TASK_BOARD_RUN_ID` all count as human. **PROPOSED default (H1):** without a signature policy, an operator's CLI act outside any run counts as human, and this specification calls that what it is: a guardrail against well-behaved agents, not a boundary against a hostile one. The boundary is a signature that shows a person acted (**Signatures**, below), checked against the committed file (§2.4). Today the only actor signal the kernel has is the `TASK_BOARD_RUN_ID` convention, which the producer guard itself calls "not an operator authorization boundary" (task-board `tools/board-cli/cmd/producer_handoff_guard.go:12-15`).
+`human` is defined by absence today, so an untracked `curator run` session, a bare harness binary and a run that clears `TASK_BOARD_RUN_ID` all count as human. *Decided (2026-09-24, H1):* without a signature policy, an operator's CLI act outside any run counts as human, and this specification calls that what it is: a guardrail against well-behaved agents, not a boundary against a hostile one. The session host narrows the gap by marking the sessions it hosts, which then act as `session`. The boundary is a signature that shows a person acted (**Signatures**, below), checked against the committed file (§2.4). The validator warns when a workflow has human-owned states and the project sets no `policy.signatures` (§10). Today the only actor signal the kernel has is the `TASK_BOARD_RUN_ID` convention, which the producer guard itself calls "not an operator authorization boundary" (task-board `tools/board-cli/cmd/producer_handoff_guard.go:12-15`).
 
-**People.** `people` maps groups to waggle operator principals, and only to them *(proposed)*:
+**People.** `people` maps groups to waggle operator principals, and only to them:
 
 ```json
 "people": { "cafe-managers": { "principals": ["op:alice@cafe", "op:bob@cafe"] } }
@@ -176,9 +195,9 @@ Four rules complete the table *(proposed)*:
 - Orchestrator and worker principals (`orch:`, `worker:`) are agents and cannot be people; the schema refuses them.
 - A pattern (`op:*@acme`) is resolved against the waggle roster at the pinned revision. A quorum (§6.4) counts distinct principals present in that roster. The roster is a committed file, so presence in it is a portable check (§10).
 
-**Services.** `services` maps the signer groups that event declarations name to the principals of the bridges that may sign those events (§6.9). The service principal kind (`svc:` in the examples) is part of the waggle amendment this design depends on (§17, H7). *proposed*
+**Services.** `services` maps the signer groups that event declarations name to the principals of the bridges that may sign those events (§6.9). The service principal kind (`svc:` in the examples) comes with the waggle amendment this design depends on (§17).
 
-**Signatures.** `policy.signatures` names which human acts need a waggle approver signature, at what key assurance, and whether the signature must show user verification. Its categories are defined by construct *(proposed)*:
+**Signatures.** `policy.signatures` names which human acts need a waggle approver signature, at what key assurance, and whether the signature must show user verification. Its categories are defined by construct:
 
 | Category | Covers |
 | --- | --- |
@@ -190,9 +209,9 @@ Four rules complete the table *(proposed)*:
 | `human-transitions` | every transition a human actor fires out of a human-owned state |
 
 - `min_assurance` is `software`, `hardware-bound` or `attested` (waggle §4.5).
-- `user_verified` is `required` or `if-supported`. Only a FIDO2 signature whose user-verified flag is set shows that a person was there; an agent running as the operator's OS user can obtain `software` signatures from `ssh-agent` freely, and `hardware-bound` ones whenever the key does not demand presence (waggle §4.4). **PROPOSED default (H7):** `required` for approvals, relaxations and halts whenever a project sets a signature policy.
+- `user_verified` is `required` or `if-supported`. Only a FIDO2 signature whose user-verified flag is set shows that a person was there; an agent running as the operator's OS user can obtain `software` signatures from `ssh-agent` freely, and `hardware-bound` ones whenever the key does not demand presence (waggle §4.4). A key in a Secure Enclave cannot be copied, but its signature does not show whether a person confirmed it. *Decided (2026-09-24, H7):* whenever a project sets a signature policy, `user_verified` defaults to `required` for approvals, relaxations and halts; a project whose operators hold keys that cannot show user verification lowers it to `if-supported`.
 - Approvals are signed only through the operator-facing command that renders the payload before signing ("what you see is what you sign", waggle §4.2); an agent never holds a key.
-- waggle has no class, namespace or principal kind for board approvals, signed transitions or signed events yet. Until its amendment exists (§17, H7), signed human acts work only in the forms waggle already defines, and the cafe demo waits (§15).
+- waggle has no class, namespace or principal kind for board approvals, signed transitions or signed events yet. The waggle amendment adds them (§17); it is written into the waggle specification now and implemented with milestone CM2. Until then signed human acts work only in the forms waggle already defines, and the cafe demo waits (§15).
 
 ### 4.3 Capabilities
 
@@ -235,7 +254,7 @@ Non-development processes need data: a purchase order has a supplier, lines and 
 }
 ```
 
-Types: `string`, `text`, `integer`, `number`, `boolean`, `date`, `datetime`, `duration`, `money`, `enum`, `ref`, `list`. **`required: true` means the field must be set before the element leaves its initial state**; creation may leave it empty, so a draft can be filled in its first state. A `ref` names an entity type or a slot.
+Types: `string`, `text`, `integer`, `number`, `boolean`, `date`, `datetime`, `duration`, `money`, `enum`, `ref`, `list`. **`required: true` means the field must be set before the element leaves its initial state**; creation may leave it empty, so a draft can be filled in its first state. A `ref` names an entity type or a slot. Transitions route on field values through the `field` guard (§6.3).
 
 ### 5.3 Estimates *(decided)*
 
@@ -268,7 +287,7 @@ Scales: `fibonacci`, `points`, `tshirt`, `hours`, `days`. Capacity rules (§6.8)
 ```
 
 - **Each element has exactly one owner in each state; a state may admit several roles and assignment picks one.** The owner is accountable and is what authority checks use. *decided (H8)*
-- Every non-terminal state of a resolved workflow has an owner; the validator checks the resolved result, so a file that extends a parent may override a state partially. *proposed*
+- Every non-terminal state of a resolved workflow has an owner; the validator checks the resolved result, so a file that extends a parent may override a state partially.
 - A state that admits several roles uses `{ "one_of": [...], "by": "assignment.role" }`, or `{ "one_of": { "capability": [...] }, "by": "assignment.role" }` for every installed role with those capabilities (today's open-ended roles). The element records the structured role alias on assignment or spawn; until it has one, and after a move into a state that does not admit it (§4.2 rule 4), the root orchestrator owns it. *decided*
 - **Helpers** are roles the owner may engage; they never own the state. Planning poker: owner `facilitator`, helpers `estimator`, answered blind and revealed by the owner. *decided*
 - `requires` lists entry conditions: guards applied to every transition into the state and to creation when the state is `initial`.
@@ -281,7 +300,7 @@ Two rules keep ownership clear *(decided)*:
 1. Two different results are two states: "built it" and "checked it" are `development` and `review`, never one state with two owners.
 2. Parallel work is child elements plus a join guard (`children.terminal`, `children.in`) on the parent's transition, not parallel states. A `children.in` join must list every terminal state of every child type it covers, or it can never pass once a child ends in a state it omits (§10).
 
-### 6.2 Transitions *(decided; `risk` and the new `applies_to` terms proposed)*
+### 6.2 Transitions *(decided)*
 
 ```json
 "transitions": [
@@ -310,22 +329,24 @@ A guard or action is a name, or an object whose `guard`/`action` key names it an
 
 | Provider | Guards | Actions | Events | `via` commands |
 | --- | --- | --- | --- | --- |
-| kernel | `description`, `estimate` (`grandfather_legacy`), `estimates.present` (`scope`, `dimensions`), `assignee` (`manual_only`), `blockers.clear`, `children.terminal` (`types`), `children.in` (`states`, `types`), `children.any-in` (`states`), `members.terminal-or-carried`, `checklist.complete`, `outcome.present`, `fields.present` (`fields`), `approvals` (`role`, `min`), `verdict` (`is`, `detail`), `capacity` (`dimension`, `scope`), `process.result` (`in`) | `spawn.owner`, `assign`, `create` (`type`, `per`, `fields`, `parent`), `handoff` (`to`, `create`, `link_field`, `from_outcome`), `escalate`, `notify` (to an owner or a group), `record.verdict` (`is`, `detail`), `compute.velocity` (`dimension`) | `blockers.terminal`, `children.changed`, `process.returned`, `tool.passed`, `tool.failed` | — |
-| delivery module (development only, §6.10) | `delivery.cr-published`, `delivery.review-ready`, `delivery.cr-accepted`, `delivery.cr-absent`, `delivery.commit-acknowledged`, `delivery.integration-evidence`, `delivery.external-integration-evidence`, `delivery.restore-authorized`, `delivery.rollback-authorized` | `delivery.integrate`, `delivery.close-checkpointed-siblings` | `delivery.integrated`, `delivery.integration-failed`, `delivery.rework-started` | `accept_cr`, `reject_cr`, `integrate`, `integrate_external`, `restore_done`, `landed_rework`, `invalidate`, `converge` |
+| kernel | `description`, `estimate` (`grandfather_legacy`), `estimates.present` (`scope`, `dimensions`), `assignee` (`manual_only`), `blockers.clear`, `children.terminal` (`types`), `children.in` (`states`, `types`), `children.any-in` (`states`), `members.terminal-or-carried`, `checklist.complete`, `outcome.present`, `fields.present` (`fields`), `field` (`name`; one of `is`, `in`, `lt`, `lte`, `gt`, `gte`), `approvals` (`role`, `min`), `verdict` (`is`, `detail`), `capacity` (`dimension`, `scope`), `process.result` (`in`) | `spawn.owner`, `assign`, `create` (`type`, `per`, `fields`, `parent`), `handoff` (`to`, `create`, `link_field`, `from_outcome`), `escalate`, `notify` (to an owner or a group), `record.verdict` (`is`, `detail`), `compute.velocity` (`dimension`) | `blockers.terminal`, `children.changed`, `process.returned`, `tool.passed`, `tool.failed` | — |
+| delivery module (development only, §6.10) | `delivery.cr-published`, `delivery.review-ready`, `delivery.cr-accepted`, `delivery.cr-absent`, `delivery.commit-acknowledged`, `delivery.checks-passed` (`set`), `delivery.integration-evidence`, `delivery.external-integration-evidence`, `delivery.restore-authorized`, `delivery.rollback-authorized` | `delivery.integrate` (`checks`), `delivery.close-checkpointed-siblings` | `delivery.integrated`, `delivery.integration-failed`, `delivery.rework-started` | `accept_cr`, `reject_cr`, `integrate`, `integrate_external`, `restore_done`, `landed_rework`, `invalidate`, `converge` |
 | timers | — | — | `after` durations | — |
 | a playbook's `events` | — | — | declared external events (§6.9) | — |
 
-`delivery.review-ready` passes for an element without a Change Request, or one whose latest revision is published. `delivery.integration-failed` is emitted only together with a rollback authorization (§6.10). `delivery.integrate` integrates the accepted revisions of the unit; a unit with none integrates at once.
+`delivery.review-ready` passes for an element without a Change Request, or one whose latest revision is published. `delivery.checks-passed` passes when the named check set has evidence for the revision the transition moves (§6.12). `delivery.integration-failed` is emitted only together with a rollback authorization (§6.10). `delivery.integrate` integrates the accepted revisions of the unit, gated by the check set its `checks` argument names; a unit with none integrates at once.
 
-**Verdicts** *(proposed; closes the first run's F35)*. Verdicts use the goal ledger's vocabulary and spelling (task-board `pkg/board/goal.go:40-49`): `accepted`, `changes_requested`, `stop_the_line`, plus one extension, `rejected` — the work is refused and will not be reworked. The ledger has no `rejected`, so the validator refuses a `rejected` route on a type that `policy.goals.orchestrator_goal` names until the ledger gains it (§17). A verdict may carry a typed `detail`, and a `verdict` guard may match it: the refuter records `accepted` with `no-contradiction`, `changes_requested` with `contradiction`, and `stop_the_line` with `human-decision-needed` (§12). Reviewers and approvers record verdicts; `record.verdict` records one for the acting reviewer or approver run and nothing for any other actor. `tool.passed` and `tool.failed` arise only from a state owned by a tool role (§6.11).
+**Field conditions** *(decided 2026-09-24)*. The `field` guard compares one field of the element with a value: `is` (equal), `in` (one of a list), `lt`, `lte`, `gt`, `gte` (numbers, money in the field's currency, dates and date-times). It turns declared data into routes. A review level is a field whose value selects the route: in dev-cycle `{ "guard": "field", "name": "review", "is": "none" }` lets inline work skip review. A threshold selects whether a purchase needs an approval: `{ "guard": "field", "name": "amount", "gt": 500 }` beside the `approvals` guard. The guard-bypass check reads field conditions on one field (§10). The guard names a field the element's type declares; an unset field fails every comparison.
 
-**Evidence must be fresh** *(proposed)*. A verdict, an approval or an outcome satisfies a guard only when it was recorded after the element last entered the transition's source state; for work under a Change Request it must also name the revision the guard evaluates. This extends today's rule for reviewer verdicts, which count only when recorded after the latest producer outcome (`tools/board-cli/internal/spawnruntime/goal_acceptance.go:172-173`). So a refuter's old verdict cannot move a redrafted epic, a QA state waits for the tester's own outcome, and sending a purchase order again after an escalation needs a new approval.
+**Verdicts** *(closes the first run's F35)*. Verdicts use the goal ledger's vocabulary and spelling (task-board `pkg/board/goal.go:40-49`): `accepted`, `changes_requested`, `stop_the_line`, plus `rejected` — the work is refused and will not be reworked. The ledger gains `rejected` in PC1, a task-board change, so any type may route on it *(decided 2026-09-24)*. A verdict may carry a typed `detail`, and a `verdict` guard may match it: the refuter records `accepted` with `no-contradiction`, `changes_requested` with `contradiction`, and `stop_the_line` with `human-decision-needed` (§12). Reviewers and approvers record verdicts; `record.verdict` records one for the acting reviewer or approver run and nothing for any other actor. `tool.passed` and `tool.failed` arise only from a state owned by a tool role (§6.11).
+
+**Evidence must be fresh.** A verdict, an approval or an outcome satisfies a guard only when it was recorded after the element last entered the transition's source state; for work under a Change Request it must also name the revision the guard evaluates. This extends today's rule for reviewer verdicts, which count only when recorded after the latest producer outcome (`tools/board-cli/internal/spawnruntime/goal_acceptance.go:172-173`). So a refuter's old verdict cannot move a redrafted epic, a QA state waits for the tester's own outcome, and sending a purchase order again after an escalation needs a new approval.
 
 ### 6.4 Approvals and quorum *(decided)*
 
 `{ "guard": "approvals", "role": "manager", "min": 1 }` needs approvals from that role; `min` above one is quorum voting and needs distinct principals present in the roster at the pinned revision. An approval is a board record bound to the approving principal, and it counts only while fresh (§6.3). It is a human act (§4.2): the operator's own CLI action counts only where policy does not require a signature; otherwise it is a waggle approver signature at the configured assurance and user verification, made through the command that renders the payload. The validator flags `min` greater than the number of principals in the role's group.
 
-### 6.5 Hand-off between processes *(decided; the local path proposed)*
+### 6.5 Hand-off between processes *(decided)*
 
 A state owned by a `process` role is worked in another process: a playbook instance on the same board (a member of the project's composition) or on another board. The playbook names a process **slot**; the project binds it (§7.2). The `handoff` action offers the work; the receiving orchestrator accepts the offer, creates the element in its own hierarchy (placed by the rule of §5.1) and sets the link:
 
@@ -336,7 +357,7 @@ A state owned by a `process` role is worked in another process: a playbook insta
 ```
 
 - **On one board** — every process of the project's composition — the offer and the acceptance are board records, and the kernel emits `process.returned` to the offering element when the received element reaches a terminal state. This path needs no waggle and ships in PC1, so the first demos can run (§15).
-- **Across boards** the offer and the acceptance are waggle messages (`coord.handoff-offer`, `coord.handoff-accept`), and the result returns through the `coord` type the waggle amendment adds (§17, H7). Until the amendment exists, cross-board hand-off is not available.
+- **Across boards** the offer and the acceptance are waggle messages (`coord.handoff-offer`, `coord.handoff-accept`), and the result returns through the `coord` type the waggle amendment adds (§17). Until the amendment is implemented, with CM2, cross-board hand-off is not available.
 - `process.returned` carries the final state of the received element; `process.result` guards on it. The exits of a process-owned state must cover every terminal state of the type the hand-off creates, so no result is left without a route (§10).
 - Writes into another orchestrator's leased scope go through that orchestrator (§7.2).
 
@@ -358,22 +379,34 @@ Orchestrators lose the thread on large goals; the weaker the model, the shorter 
 
 | Key | Meaning | Set by |
 | --- | --- | --- |
-| `review.default` | `required`, `light` or `none` for new elements (today's review policy) | template or project |
+| `review.default` | `required`, `light` or `none`: the default of the element field `review` for new elements (today's review policy); routes select on the field with `field` (§6.3) | template or project |
+| `wip` | limits on work in progress: `board`, `per_role`, `per_state` (below) | template or project; the project wins |
 | `capacity` | per container type, the maximum sum of one estimate dimension (a sprint of 100 complexity points) | template or project |
 | `privacy` | view visibility and redacted fields (§5.4) | template or project |
 | `goals` | §6.7 | template or project; the project wins in a composition |
 | `effort_floor` | per role, the lowest effort a run may use, applied per model row (§9) | project only |
-| `enable` | `schedules` (all or named), `auto_spawn`, `tools` (all or named), `relaxations` (§8.5, §9) | project only |
+| `enable` | `schedules` (`all` or named), `auto_spawn`, `tools` (`all` or named), `relaxations` (§8.5, §9) | project only |
 | `signatures` | which human acts need a waggle approver signature, the minimum key assurance and `user_verified` (§4.2) | project only |
 | `data` | publishers denied, billing classes admitted, local only (§9) | project only |
-| `delivery.version_control` | `confirm`, `desired_commit_time` (required when `confirm`), `commit_time_policy` | template or project |
+| `delivery.version_control` | `confirm`, `desired_commit_time` (required when `confirm`), `commit_time_policy`; owned here since v3, and `task-board.config.json`'s `version_control` keys are read for one release with a warning (§2.1) | template or project |
 | `delivery.loop_detection` | rework threshold `max(floor, factor × median)` | template or project |
 
-### 6.9 Timers, schedules, tools and external events before the main loop *(decided; details proposed)*
+**Work in progress** *(decided 2026-09-24)*. `policy.wip` bounds active runs, the runs working the board's elements:
+
+```json
+"wip": { "board": 6, "per_role": { "developer": 3, "reviewer": 2 }, "per_state": { "dev.review": 2 } }
+```
+
+- `board` bounds the active runs of the whole board; `per_role` those of one role; `per_state` those working elements in one state, named `<workflow>.<state>`, or a bare state name for that state in every workflow that has one.
+- When starting a run would exceed a limit, the kernel does not start it: the element keeps its state, the start waits, and the kernel reports `wip_limit_reached` with the limit that held and the element's place in line. The start proceeds when a run ends.
+- The limits describe the process. What one computer can carry — parallel runs across every board, concurrent local check sets, rate-limit ladders — is the operator's machine capacity (`runtimes.toml`, §2.3), and the stricter of the two holds.
+- Today's per-board limit `spawn.max_parallel` becomes `policy.wip.board` (§14).
+
+### 6.9 Timers, schedules, tools and external events before the main loop *(decided)*
 
 Time-based transitions (`after`), schedules, approval expiries and tool invocations need a process that runs without an agent. The main loop will be that process; until it exists, `task-board tick` does the job:
 
-- **Scheduler.** Something calls tick every minute: a periodic capability of the session host, which its contract does not have yet (start and resume, goals, notices and events), or a documented launchd (macOS), systemd timer (Linux) or cron entry. Both are dependencies (track).
+- **Scheduler** *(decided 2026-09-24)*. A user-level system timer calls tick every minute: a launchd agent on macOS or a systemd user timer on Linux, installed by one task-board command. It runs whether or not any session is open. The Keeper takes the job over when it exists.
 - **Scope.** Tick fires due `after` transitions, due schedules, expiries of `ask` approvals and pending tool invocations (§6.11), recording actor `kernel`.
 - **Lease.** Tick takes a lease first. On one machine that is the board's own lease; a board shared across machines needs waggle's lease store (NATS JetStream KV, milestone CM2). Until CM2, a shared board runs tick on one machine only, which the project documents.
 - **Idempotence.** Every firing has a key: (element, transition, due time) for timers and expiries, (schedule, due time) for schedules, (element, entry) for tool invocations. Keys live in the lease store, so running tick twice, or on two machines under one lease store, fires each item once.
@@ -388,7 +421,7 @@ External events enter through `task-board event post <event> --element <id>` wit
 - A bridge that turns a provider's webhook into a signed event first verifies the provider's own webhook authentication (its signature scheme or mutual TLS), and signs only events of the groups it is bound to. Receiving webhooks needs a service the ecosystem does not run yet.
 - **Events are kept.** An accepted event stays on its element until it fires a transition or the element reaches a terminal state; each kept event fires at most one transition, and one that matches no transition in the current state is logged and kept. Kernel events that describe current state (`children.changed`, `blockers.terminal`) are not kept: on every entry into a state the kernel evaluates that state's automatic transitions on those events as if they had just fired, and its other automatic transitions against the kept events. So a supplier confirmation that arrives after the SLA fired is not lost (cafe), and an attempt accepted while its milestone was stalled still proves the milestone when it reopens (formal missions).
 
-### 6.10 Delivery invariants *(decided; binding to element state proposed)*
+### 6.10 Delivery invariants *(decided)*
 
 The delivery module's invariants hold for every element on a board where the module is loaded, whatever its workflow declares. They bind to element state — an element under a Change Request, an element in integration — not to the hooks a workflow names, so a project that removes the `delivery.*` hooks from a workflow does not escape them while the Change Request commands still work on its elements. A playbook may add stricter checks, never weaker ones.
 
@@ -399,17 +432,42 @@ The delivery module's invariants hold for every element on a board where the mod
 
 The validator checks rules 1, 3 and 4 on every workflow that uses the delivery hooks; rule 2 depends on run provenance and is enforced at runtime only. `dev-cycle` keeps accepted Change Request leaves in a non-terminal `accepted` state until their story integrates, as `integrating` does today, and lets inline work finish on acceptance with `delivery.cr-absent`. Its story joins on every terminal state of its child types, so a story with design or inline work integrates too.
 
-### 6.11 Tool invocation *(proposed)*
+### 6.11 Tool invocation *(decided)*
 
 A tool's verdict must not come from the actor that triggered it. In formal missions the prover's run moves an attempt into `checking`; if the check ran in that run's process, a `lean` earlier on its `PATH` or a replaced shim in the checkout would record `tool.passed` for an unchecked proof as actor `kernel` (refuter v1, N7). So:
 
 - Entering a tool-owned state enqueues one invocation keyed by (element, entry). The actor of the entering transition never runs it.
-- A kernel-owned executor runs it: `task-board tick` until the main loop, or the session host once it has the periodic capability (§6.9).
+- A kernel-owned executor runs it: `task-board tick` under its system timer until the Keeper exists (§6.9).
 - It runs only the command the binding names, through the shim Curator installed for the provider after checking the shim against the Curator lock (its owner must be the bound skill), or under the enforced `script-worker-v1` policy when the provider declares it (curator-spec `protocol/core.md` §4.1.1).
 - The environment is sanitized: a fixed `PATH` of the managed command directory and system directories, and no variables inherited from agent runs. The working directory is the project root.
 - The contract: the command receives `--element <id>` and, on standard input, a JSON object with the element's id, type and declared fields, the playbook, the tool name and the entry key. Exit status 0 fires `tool.passed` and 1 fires `tool.failed`; any other status, a crash or the binding's `timeout` (ten minutes by default) fires `tool.failed` with the reason `error` or `timeout`. Bounded standard output is stored as the tool's outcome. The executor never retries; a `tool.failed` exit with a `limit` models retries.
 - A person may leave a tool-owned state through its declared manual exits (§4.2 rule 2); a running invocation is then cancelled.
-- A tool runs only when the project enables it and only from a skill installed through Curator (§8.4, §8.5). Entering a state whose tool is disabled or not enabled is refused.
+- A tool runs only when the project lists it in `policy.enable.tools` and only from a skill installed through Curator (§8.4, §8.5). Entering a state whose tool the project does not list is refused.
+
+### 6.12 Check sets *(decided 2026-09-24)*
+
+Evidence that a machine produces for delivery — tests, linters, builds — comes from named **check sets**. The playbook says which set must pass where; the project says how and where each set runs.
+
+- A playbook names a set in the guard `{ "guard": "delivery.checks-passed", "set": "handoff" }`, or as the gate of an integration, `{ "action": "delivery.integrate", "checks": "landing" }`. dev-cycle uses `handoff` before review and `landing` for its story's integration.
+- `task-board.config.json` defines each set under `checks`:
+
+  ```json
+  "checks": {
+    "handoff": { "where": "local", "commands": ["make test-fast"],
+                 "by_task_class": { "docs": { "where": "local", "commands": [] } } },
+    "landing": { "where": ["local", "hosted"], "commands": ["make test-smoke"], "hosted": { "provider": "github" } }
+  }
+  ```
+
+  - `where` is `local`, `hosted`, or both as a list; every place listed must pass.
+  - `commands` are run in order by the kernel on this machine, under its machine capacity (§2.3); they are required when `where` includes `local`. An explicitly empty list is a recorded decision to run nothing, as today.
+  - `hosted` names the hosting provider whose required checks must pass on the exact head that lands; it is required when `where` includes `hosted`.
+  - `by_task_class` gives a set a variant per task class.
+- Evidence binds to what the guarded transition moves: a local set to the tree it ran on, a hosted set to the head whose required checks the provider reported. The delivery module produces it, as today's suite does: it runs a local set when a producer hands off and again at integration when the bound evidence is missing or stale, and it collects a hosted set's result from the provider. The guard only checks that the evidence exists.
+- When hosted checks cannot run for a verified external cause, the local-mirror rule applies: a clean checkout of the exact head runs the matching commands and records the evidence. The mirror never produces, edits or stands in for the provider's own status, so branch protection still waits for the provider.
+- A process without the delivery module, such as the cafe, has no check sets and no dependency on a git host: its evidence comes from people (approvals), tools (§6.11) and signed events (§6.9).
+- A set a playbook names must be defined in `task-board.config.json`; both files are committed, so the validator checks it portably (§10).
+- Today's landing-gate suite, `spawn.worktree_isolation.validation.commands`, is a local `landing` set (§14).
 
 ## 7. Extension and composition
 
@@ -436,7 +494,7 @@ A project starts from one published playbook and writes only what differs. When 
 
 Here an iOS project swaps the developer skill and puts a tester's QA pass before review. Because evidence must be fresh (§6.3), `qa → review` waits for the tester's own outcome.
 
-Merge rules *(proposed)*:
+Merge rules:
 
 1. One parent. Chains are allowed; cycles are refused. The object form pins the parent by its Curator package identity: `{ "name": "dev-cycle", "package": { "kind": "network-git", "repository": "github.com/relux-works/curator-playbook-dev-cycle", "commit": { "object_format": "sha1", "hex": "…" }, "directory": "skills/orchestrator" } }`, or a `local-snapshot` digest, or a `configured-git` source (curator-spec `protocol/skillfile-sources.md`). The resolver compares it with the lock entry of the skill that carries the template; an extending template must use it.
 2. Maps merge by key, recursively.
@@ -445,7 +503,7 @@ Merge rules *(proposed)*:
 5. The validator runs on the resolved result (§10) and reports which file introduced each error.
 6. The board records the resolved template's package identity and semantic digest, and the project file's revision and digest (§2.4); teammates who resolve a different digest get a refusal naming both. A template update that removes or renames states declares `migrations` (old state → new state) or the validator lists the stranded elements and refuses.
 
-### 7.2 `uses` and slots: composition *(decided; lease crossing proposed)*
+### 7.2 `uses` and slots: composition *(decided)*
 
 A project can run several playbooks as one process. A playbook that refers to a type or a process it does not define declares a **slot**; the project binds it:
 
@@ -482,7 +540,9 @@ curator-playbook-cafe/
     supplier-portal/         SKILL.md (name: cafe-supplier-portal), agent-skill.json exporting cafe-send-order
 ```
 
-Every role directory is a real skill: instructions in `SKILL.md`, optional `references/`, `assets/`, `data/` — the roots Curator installs. The template lives in the orchestrator skill because the root role owns the process. Packages are named `curator-playbook-<purpose>`. Role metadata sits in `data/role.json`, which also lists the other skills the role needs, as today's `.roles/<role>/skills.md` does. When sources disagree, the project's `Playbook.json` role entry wins over the template's role entry, which wins over `data/role.json`. Tool providers live in `tools/`, outside the collection, for the reason in §8.5.
+Every role directory is a real skill: instructions in `SKILL.md`, optional `references/`, `assets/`, `data/` — the roots Curator installs. The template lives in the orchestrator skill because the root role owns the process. Packages are named `curator-playbook-<purpose>`. Role metadata sits in `data/role.json`, not in the skill's frontmatter. The file also lists the other skills the role needs, as today's `.roles/<role>/skills.md` does; it has its own JSON Schema, which arrives with PC2, and the validator checks it *(decided 2026-09-24)*. When sources disagree, the project's `Playbook.json` role entry wins over the template's role entry, which wins over `data/role.json`. Tool providers live in `tools/`, outside the collection, for the reason in §8.5.
+
+**Role skills are installed on demand** *(decided 2026-09-24)*. Harnesses pick skills by their description, so a role skill in a discovery directory can fire in any session of the project, and an orchestrator could start acting as a reviewer. Role skills, the root orchestrator's included, are therefore installed with Curator activation `on-demand`: resolved, audited and locked like any skill, and never materialized into the project's or the machine's discovery directories. A launch receives exactly the skill of the role it runs through Curator's skills launch channel, in identity form: the skill body goes through the harness's system-prompt channel together with the base directory of its locked snapshot. A role run gets its role's skill; the project's primary session gets the root orchestrator's skill; a plain harness session in the checkout sees none of them. This is a Curator change (curator-spec issue #91, curator issue #91; §8.3). Until it ships, role skills install as ordinary skills and their descriptions say "use only when spawned as role X", a stopgap that depends on the model obeying it.
 
 ### 8.2 One Skillfile entry installs the process
 
@@ -496,26 +556,27 @@ Curator's Skillfile schema 2 (curator-spec `protocol/skillfile-sources.md`) decl
     "roles": { "git": "https://github.com/relux-works/curator-playbook-roles", "tag": "v0.3.0" }
   },
   "skills": [
-    { "from": "cafe", "directory": "skills", "include": ["*"] },
-    { "name": "security-reviewer", "from": "roles", "directory": "skills/security-reviewer" }
+    { "from": "cafe", "directory": "skills", "include": ["*"], "activation": "on-demand" },
+    { "name": "security-reviewer", "from": "roles", "directory": "skills/security-reviewer", "activation": "on-demand" }
   ]
 }
 ```
 
-The first selector installs the orchestrator and every role of the cafe; the provider in `tools/` arrives as the orchestrator's runtime dependency (§8.5). The second selector adds a reusable role from another repository, which `Playbook.json` then binds to an alias.
+The first selector installs the orchestrator and every role of the cafe; the provider in `tools/` arrives as the orchestrator's runtime dependency (§8.5). The second selector adds a reusable role from another repository, which `Playbook.json` then binds to an alias. `activation` is the Curator change of §8.3 item 3; until it ships, the selectors omit it.
 
-**Resolving a template** *(proposed)*. The board resolves `"extends": "cafe-ops"` through Curator's locks, in Curator's precedence order: project, hybrid, global (curator-spec `profiles/manager.md`). Among the admitted playbooks (§8.5), the first scope that holds a skill whose `data/playbook.json` has that name wins; two such skills in one scope are an error. The kernel resolves from the scopes of the project checkout, so a run in its own Curator profile (agent-selection §6) does not change the template in force.
+**Resolving a template**. The board resolves `"extends": "cafe-ops"` through Curator's locks, in Curator's precedence order: project, hybrid, global (curator-spec `profiles/manager.md`). Among the admitted playbooks (§8.5), the first scope that holds a skill whose `data/playbook.json` has that name wins; two such skills in one scope are an error. The kernel resolves from the scopes of the project checkout, so a run in its own Curator profile (agent-selection §6) does not change the template in force.
 
 ### 8.3 The Curator work *(decided)*
 
-Two changes belong to Curator, not to this module:
+Three changes belong to Curator, not to this module:
 
 1. Release Skillfile schema 2 from its flag.
 2. `dependencies.skills` entries in a skill manifest (curator-spec `protocol/core.md` §4.4: `git`, exact `ref`, activation `mode`, command narrowing) gain the same `directory` selection as schema 2 individual selectors, with the same containment rules, so an orchestrator can depend on a tool provider in its own repository and a playbook on a role in a subfolder of another repository.
+3. Skillfile schema 2 selectors gain activation `on-demand`, and `env resolve` and `curator run` gain a skills launch channel that delivers named on-demand skills to one launch and never into a shared profile home; `curator status --json` lists on-demand skills (curator-spec issue #91, curator issue #91).
 
 ### 8.4 Without Curator
 
-The role directories can be copied into the harness skill directories (`.claude/skills`, `.codex/skills`, `agents/skills`). The resolver finds role skills and templates there by name; nothing in `Playbook.json` changes, and the machine checks (§10) warn that the skills are unaudited. **Tools do not run without Curator** *(decided, wiki decisions.md:84)*: a tool binding to a skill Curator did not install is refused with the `curator add` fix, and the states that tool owns cannot be entered.
+The role directories can be copied into the harness skill directories (`.claude/skills`, `.codex/skills`, `agents/skills`). The resolver finds role skills and templates there by name; nothing in `Playbook.json` changes, and the machine checks (§10) warn that the skills are unaudited and that copied role skills are visible to every session (§8.1). **Tools do not run without Curator** *(decided, wiki decisions.md:84)*: a tool binding to a skill Curator did not install is refused with the `curator add` fix, and the states that tool owns cannot be entered.
 
 ### 8.5 Playbooks are data *(decided)*
 
@@ -547,45 +608,64 @@ A playbook never names a program, script, webhook or URL. This keeps Curator's b
   - `directory` is the Curator change of §8.3 item 2, needed when the provider lives in the playbook's own repository; a provider in its own repository needs none.
   - A template's binding is admitted only when that manifest declares the provider and the command (a machine check, §10). v2's rule "a template may bind a tool only to a skill of its own package" is gone: in Curator every skill is its own package and installation unit (`protocol/core.md:80`; `skillfile-sources.md:69-71`).
   - Command names are global shims with exactly one owner each (`protocol/core.md:212-213`), so published packages prefix them: `cafe-send-order`, `proof-lean-check`. The machine check verifies that the shim's owner is the bound skill.
-  - A project may rebind a tool to another installed provider, or disable it with `"tools": { "supplier.send-order": null }`, after which the states the tool owns cannot be entered. *decided (rebind and disable); the `null` form proposed*
+  - A project may rebind a tool to another installed provider.
+  - A bound tool runs only when the project lists it in `policy.enable.tools`, by name or with `all`; `all` also admits tools that later versions of the admitted templates add. A tool the project does not list is disabled, and the states it owns cannot be entered. There is no separate form for disabling a tool *(decided 2026-09-24, H3)*.
   - The kernel runs only commands exported by skills installed through Curator, never a string from a playbook, and always through the executor of §6.11.
-- **Side effects are proposals.** Schedules (§6.6), `spawn.owner` actions, tool invocations and `fallback`/`degrade` relaxations (§9) that a package declares take effect only when the project enables them (`policy.enable`). *decided; tool invocations join the list as a **PROPOSED default (H3)***
-- **Admission.** The project's `extends` and `uses`, read at the pinned revision (§2.4), are its list of admitted playbooks. A template outside that list is never resolved, whatever is installed. *decided*
+- **Side effects are proposals.** Schedules (§6.6), `spawn.owner` actions, tool invocations and `fallback`/`degrade` relaxations (§9) that a package declares take effect only when the project enables them (`policy.enable`).
+- **Admission.** The project's `extends` and `uses`, read at the pinned revision (§2.4), are its list of admitted playbooks. A template outside that list is never resolved, whatever is installed.
 
-## 9. Model needs and unmet needs *(decided; the vocabulary is a **PROPOSED default (H5)**)*
+## 9. Model needs and unmet needs *(decided)*
 
 A committed file must not break for a teammate with other harnesses, so roles state needs, never model ids and never efforts. `require` is hard: the role cannot run without it. `prefer` is soft: ranking only.
 
-**Vocabulary** — **PROPOSED default (H5).** Agent-selection S1's terms (agent-selection §3, §12), as `Playbook.json` spells them:
+**Vocabulary** *(decided 2026-09-24, H5)*. Agent-selection S1's terms (agent-selection §3, §12) plus speed, as `Playbook.json` spells them. Every term may appear in `require` or in `prefer`; numeric terms are ranges `{ "min": …, "max": … }` with at least one bound.
 
-| Term | In `require` | In `prefer` |
-| --- | --- | --- |
-| `publisher`, `family` | the row's recorded provenance matches one of the values; an empty publisher never matches | ranking |
-| `capabilities` | the row has every listed model capability (the module registry's vocabulary, for example `tool-use`; agent-selection S2 fills it) | ranking |
-| `context_window_min` | the row's context window is at least this many tokens | ranking |
-| `reasoning` | `true`: the row accepts a reasoning effort | ranking |
-| `local` | the row runs on a local engine | ranking |
-| `not_same_publisher_as` | independence, below | — |
+| Term | Meaning |
+| --- | --- |
+| `publisher`, `family` | the row's recorded provenance matches one of the values; an empty publisher never matches |
+| `capabilities` | the row has every listed model capability (the module registry's vocabulary, for example `tool-use`; agent-selection S2 fills it) |
+| `context_window` | the row's context window in tokens, a range |
+| `reasoning` | `true`: the row accepts a reasoning effort |
+| `local` | the row runs on a local engine |
+| `not_same_publisher_as` | independence, below; as a preference it ranks rows of another publisher first |
+| `pp` | prompt processing speed in tokens per second, a range |
+| `tg` | token generation speed in tokens per second, a range |
+| `ttft` | time to first token in seconds, a range |
 
-`class` sits beside `require` and `prefer`: the requirement class, which defaults to the role's workload class. Agent-selection spells the two blocks `requires` and `prefers` and the hard reasoning term `"reasoning": "required"`; this specification amends agent-selection §3 to the spelling above. The old need term `capability` becomes `capabilities`, so it no longer collides with a role's archetype `capability` (§4.3). Roadmap milestone M4 then reads its role needs from `Playbook.json` as written.
+In `require` a term must hold for the row to be a candidate; in `prefer` it only ranks candidates. `class` sits beside `require` and `prefer`: the requirement class, which defaults to the role's workload class. Agent-selection spells the two blocks `requires` and `prefers`, the hard reasoning term `"reasoning": "required"` and the context term `context_window_min`; this specification amends agent-selection §3 to the spelling above. The old need term `capability` becomes `capabilities`, so it no longer collides with a role's archetype `capability` (§4.3). Roadmap milestone M4 then reads its role needs from `Playbook.json` as written.
 
-**Independence** *(proposed)*. `not_same_publisher_as: <role>` is evaluated against the provenance of the run that produced the evidence under review — the run of that role that recorded the outcome or the Change Request revision the reviewer reads — never against a binding. On a shared board that run may come from another teammate's machine, bindings may be candidate lists, and without an operator file there is no binding at all. Run manifests record the runtime and the model (LP D11), and the registry maps the model to its publisher. Work produced by a person satisfies the requirement; work whose producing run has no recorded provenance does not, and `on_unmet` applies. In a composition the value may be a qualified role name.
+```json
+"reviewer":      { "needs": { "require": { "not_same_publisher_as": "developer", "reasoning": true },
+                              "prefer":  { "publisher": ["anthropic"], "tg": { "min": 50 } } } },
+"night-refuter": { "needs": { "require": { "local": true, "tg": { "min": 10 } },
+                              "prefer":  { "context_window": { "min": 200000 } } } }
+```
 
-**Effort** *(decided: H4 keeps the floor; per-row semantics proposed)*. Effort is not a need: it lives in the operator file (§2.3). A project may set a floor per role (`policy.effort_floor`), and the operator chooses within it. Model rows own separate effort vocabularies that overlap only by coincidence (task-board `pkg/remoteconfig/reasoningeffort/reasoningeffort.go:98-100`; a local Qwen row may admit only `low`, `medium`, `high`, LP D2), so the floor is applied per row on the common order `minimal < low < medium < high < xhigh < max`:
+**Speed facts** *(decided 2026-09-24)*. A speed term is evaluated against the best fact available for the row on this machine, and the selection records which source it used:
+
+1. **Measured.** For a local model, curator-inference-manager's benchmark of that engine and model on this machine, prompt processing and generation, repeated when either changes. For a cloud model, the median of recent observed runs on this machine and account, which task-board records for every run.
+2. **Declared.** Typical ranges shipped with the model registry. A requirement is checked against the conservative end of the range: the lower end of `pp` and `tg`, the upper end of `ttft`.
+3. **Unknown.** A requirement is unmet and `on_unmet` applies, with a refusal that names what to measure; a preference scores nothing.
+
+`pp` and `ttft` depend on the length of the prompt, so both are measured at one reference prompt size, which PC1 fixes (§17.3).
+
+**Independence**. `not_same_publisher_as: <role>` is evaluated against the provenance of the run that produced the evidence under review — the run of that role that recorded the outcome or the Change Request revision the reviewer reads — never against a binding. On a shared board that run may come from another teammate's machine, bindings may be candidate lists, and without an operator file there is no binding at all. Run manifests record the runtime and the model (LP D11), and the registry maps the model to its publisher. Work produced by a person satisfies the requirement; work whose producing run has no recorded provenance does not, and `on_unmet` applies. In a composition the value may be a qualified role name.
+
+**Effort** *(decided: H4 keeps the floor)*. Effort is not a need: it lives in the operator file (§2.3). A project may set a floor per role (`policy.effort_floor`), and the operator chooses within it. Model rows own separate effort vocabularies that overlap only by coincidence (task-board `pkg/remoteconfig/reasoningeffort/reasoningeffort.go:98-100`; a local Qwen row may admit only `low`, `medium`, `high`, LP D2), so the floor is applied per row on the common order `minimal < low < medium < high < xhigh < max`:
 
 - the effective floor is the lowest value the row admits at or above the floor;
 - a row that accepts no reasoning effort at all (Claude Haiku) satisfies the floor vacuously; a project that wants to exclude such rows requires `reasoning: true`;
 - a row with no value at or above the floor is unmet, and the role's `on_unmet` applies with the refusal `selection_effort_floor_unsatisfiable`, which names the row's vocabulary.
 
-**Without the operator file** — **PROPOSED default (H2).** The resolver chooses automatically, never wider than:
+**Without the operator file** *(decided 2026-09-24, H2)*. The resolver chooses automatically, never wider than:
 
-1. the rows the project admits: `policy.data` (below), where an absent billing list admits `subscription` and `local` only, so a metered runtime is never chosen without an operator file or an explicit project admission;
+1. the rows the project admits (`policy.data`, below), and never a metered runtime: without `models.toml` only `subscription` and `local` rows are candidates, whatever `policy.data.billing` lists, because only the operator's own file may spend the operator's money (§2.3). A runtime whose billing class cannot be determined — one harness may run on a subscription or on an API key, depending on how it is logged in — counts as metered;
 2. the rows installed and logged in on this machine: the availability facts of roadmap M5b where they exist; before M5b, installed and bound runtimes, where a launch refused for authentication moves the choice to the next candidate;
 3. the rows that satisfy the role's needs and the effort floor.
 
-It prints the choice and the reason, and suggests the `[bindings]` line that would pin it. This amends agent-selection §7 — without an operator file, operator admission is replaced by project admission ∩ machine facts, never by the whole registry — and LP D9: with no operator config, the project's data policy decides admission, and a file that exists but cannot be read still refuses, since a read failure is never headroom.
+It prints the choice and the reason and never asks mid-run, because an orchestrator works without a person present. A command writes the choice into `models.toml` as `[bindings]` lines. How the first start guides an operator who has no file is open (§17.3). This amends agent-selection §7 — without an operator file, operator admission is replaced by project admission ∩ machine facts ∩ non-metered billing, never by the whole registry — and LP D9: with no operator config, the project's data policy narrows admission, and a file that exists but cannot be read still refuses, since a read failure is never headroom.
 
-**Project data policy** *(proposed; answers the first run's F10)*. `policy.data` carries agent-selection's committed data policy (agent-selection §4): `publishers.deny`, `billing` (`subscription`, `local`, `metered`) and `local_only`. `Playbook.json` supersedes agent-selection's committed project layer for role needs, admission (`extends`/`uses` replace `playbooks.allowed`), data policy and waivers; a waiver is a reviewed change to the project's role entry, with the reason in its `description`. Shared runtimes and validation stay in that layer until PC1 decides (§17).
+**Project data policy** *(answers the first run's F10)*. `policy.data` carries agent-selection's committed data policy (agent-selection §4): `publishers.deny`, `billing` (`subscription`, `local`, `metered`) and `local_only`. It only narrows: listing `metered` admits metered rows for operators whose own file admits them, and never admits metered billing by itself. `Playbook.json` supersedes agent-selection's committed project layer for role needs, admission (`extends`/`uses` replace `playbooks.allowed`), data policy and waivers; a waiver is a reviewed change to the project's role entry, with the reason in its `description`. Team runtime names and check sets live in `task-board.config.json` (§2.1, §6.12); machine limits live in the operator's `runtimes.toml` (§2.3).
 
 **When needs cannot be met**, `on_unmet` decides:
 
@@ -596,14 +676,18 @@ It prints the choice and the reason, and suggests the `[bindings]` line that wou
 | `ask` | ask a person for a temporary exception (below) |
 | `degrade` | run on the best available through a statically declared `degraded_state` (a review state with its own owner); active only when the project enables relaxations; refused for independence requirements, because more reviews from the same publisher cannot restore independence |
 
-**The degraded path** *(proposed)*. A run selected under `degrade` marks its element degraded. The next exit from the state that run worked in is redirected into `degraded_state`, recording the original target; `degraded_state` has an owner other than the degraded role and declared exits back into the workflow, and leaving it clears the mark. The validator checks that `degraded_state` exists in each workflow where the role owns a state and that it reaches the original targets.
+**The degraded path**. A run selected under `degrade` marks its element degraded. The next exit from the state that run worked in is redirected into `degraded_state`, recording the original target; `degraded_state` has an owner other than the degraded role and declared exits back into the workflow, and leaving it clears the mark. The validator checks that `degraded_state` exists in each workflow where the role owns a state and that it reaches the original targets.
 
-**Who relaxes a hard requirement** *(decided in principle; details proposed)*:
+**Who relaxes a hard requirement** *(decided)*:
 
-- Permanently: only a reviewed change to the project's `Playbook.json`, which takes effect when it lands (§2.4). This amends agent-selection §8 ("only the project can waive") by adding the temporary path below.
+- Permanently: only a reviewed change to the project's `Playbook.json`, which takes effect when it lands (§2.4). This amends agent-selection §8 ("only the project can waive") by adding the temporary paths below.
 - Temporarily: through `ask`, an operator approves an exception for **their own runs only**, scoped to an element subtree (`element`, the nearest ancestor of a type, or `project`) and time-limited. The exception is a kernel record, `exception`, available in every playbook rather than a type a playbook must declare, and it is bound to the approving principal; it never reaches a teammate's runs. Until runs are bound to principals (waggle worker certificates), "own runs only" is a guardrail. `policy.signatures` may require a signature for it (`relaxations`).
+- An exception that expires while a run is working lets that run finish; new runs refuse. An exception relaxes only project requirements, never the operator's own `[allow]` *(decided 2026-09-24)*.
+- **Standing answers** *(decided 2026-09-24)*. An operator may answer an `ask` in advance in `models.toml` (`[answers]`, §2.3), so autonomous work does not stop for a question the operator has already answered. When `ask` fires and a standing answer matches the role, the requirement term and the project, the kernel records an `exception` marked as a standing answer from the operator file, bound to that operator, and the run proceeds; the team sees the exception on the board. A standing answer never applies when `policy.signatures` covers `relaxations`, because a file cannot show that a person acted at that moment. It applies to the operator's own runs only and never widens `[allow]`.
 
-Example: the reviewer requires a publisher different from the developer's; a teammate has only one publisher; `ask` fires; the teammate approves "same-publisher review under this epic, 30 days" for their own runs. Every selection records which layer supplied what and whether a fallback, an approval or a degradation applied.
+Example: the reviewer requires a publisher different from the developer's; a teammate has only one publisher; `ask` fires; the teammate approves "same-publisher review under this epic, 30 days" for their own runs, or has answered it in advance in `[answers]`. Every selection records which layer supplied what and whether a fallback, an approval, a standing answer or a degradation applied.
+
+**Per-element needs** *(future, after PC1)*. An element may add preferences and extra skills for its own runs and narrow its role's requirements, never relax them, within the operator's files.
 
 ## 10. Static validation *(decided)*
 
@@ -620,7 +704,7 @@ Example: the reviewer requires a publisher different from the developer's; a tea
 | owners | `workflow dev, state review: owner tester is not a role`; `workflow dev: non-terminal state review has no owner` (on the resolved workflow) |
 | root | `root developer does not have capability orchestrator` |
 | owner-kind exits | `workflow purchase: tool-owned state sent lacks a tool.passed or tool.failed exit`; `process-owned state invoiced has no process.returned exit`; every other non-terminal state needs at least one exit (derived types exempt) |
-| capability producers | `workflow cafe.purchase, transition approval → draft: guard verdict has no reviewer or approver producing it`; a `rejected` route on a type that `policy.goals` names |
+| capability producers | `workflow cafe.purchase, transition approval → draft: guard verdict has no reviewer or approver producing it` |
 | capability per kind | enforced by the schema: a tool cannot be a reviewer |
 | providers | `guard delivery.cr-publish: no loaded module provides it`; `event supplier.confirmd: not provided or declared` |
 | tool events | `workflow attempt, state proving: tool.passed from a state no tool owns` |
@@ -640,14 +724,18 @@ Example: the reviewer requires a publisher different from the developer's; a tea
 | degraded path | `role reviewer: on_unmet degrade names degraded_state second-review, which workflow dev lacks` |
 | project-only keys | `template dev-cycle sets policy.enable: ignored` (warning) |
 | tools enabled | `tool supplier.send-order is bound but not enabled` (warning) |
+| field conditions | `workflow dev: guard field names review, which dev-task does not declare`; `guard field on amount: gt needs a number, money, date or date-time field` |
+| check sets | `workflow dev: delivery.checks-passed names set handoff, which task-board.config.json does not define` |
+| work in progress | `policy.wip.per_role: reviewer2 is not a role`; `policy.wip.per_state: dev.qa is not a state` |
+| unsigned human acts | `workflow purchase has human-owned states and the project sets no policy.signatures: human acts are a guardrail only` (warning) |
 
-The guard-bypass rule: an `approvals` guard or a `risk` marker on one non-automatic entry into a state must appear on every non-automatic entry into it, or the guard must sit in the state's `requires`. Verdict and `process.result` guards select an exit of their source state and are outside the rule; `blockers.clear`, `estimate` and `assignee` are hygiene guards that rework routes may omit on purpose; the delivery routes are covered by the invariant checks.
+The guard-bypass rule: an `approvals` guard or a `risk` marker on one non-automatic entry into a state must appear on every non-automatic entry into it, or the guard must sit in the state's `requires`. One exception makes thresholds expressible: an entry without the guard is admitted when its `field` condition admits no value that the `field` condition of any guarded entry admits, on the same field, so `amount lte 500` may skip the approval that `amount gt 500` requires; a guarded entry without a `field` condition covers every value. Verdict and `process.result` guards select an exit of their source state and are outside the rule; `blockers.clear`, `estimate` and `assignee` are hygiene guards that rework routes may omit on purpose; the delivery routes are covered by the invariant checks.
 
 **Machine checks** (depend on what is installed and on the operator): skills installed through Curator and audited; each template tool binding declared by the orchestrator's manifest in runtime mode narrowed to the bound command; each command shim owned by the bound skill; operator bindings able to satisfy each role's needs and effort floor. They report typed "unbound on this machine" refusals and never change the portable verdict.
 
-A throwaway prototype of the portable checks (not committed) was run over [`../examples/`](../examples/) at this revision: every template and both composed projects pass. On the v2 examples it reports exactly the structural defects the second refuter run found: the cafe's `sent` and `invoiced` without an exit their owners may fire, the unrouted `paid` result, and the story join without `approved`. On seeded defects it reports each new check: an entry into `sending` without the approval, an inline route into `done` without `delivery.cr-absent`, a manual exit from `accepted`, a root that is not an orchestrator, a state without an owner, an unbound signer group and an uncovered process result.
+A throwaway prototype of a subset of the portable checks (not committed) was run over [`../examples/`](../examples/) at this revision. It covers states and initial states, owners, reachability and terminal reachability, exits, the root's capability, nesting, joins, owner-kind exits, determinism, loop-limit targets and resolutions, the guard-bypass rule with field conditions, `field` guards, check sets, work-in-progress keys, tool enablement and the signature warning; it checks templates one by one and projects for their own keys, and leaves the delivery invariants, signer groups, the roster, the degraded path, placement and slot contracts to the v2.1 prototype, whose results stand. Every template and both composed projects pass, the scrum project's `task-board.config.json` defining the check sets dev-cycle names. On seeded defects it reports each check v3 adds: a `field` guard on an undeclared field, an ordering comparison on an enum field, a work-in-progress key that names no role or state, a check set the configuration does not define, a bound tool the project does not list, and the warning for human-owned states without a signature policy. An unguarded entry into `sending` with `amount lte 500` beside approvals guarded by `amount gt 500` is admitted; with `amount lte 600` it is refused.
 
-All examples validate against the schema. The schema refuses URLs and shell syntax in hook arguments, schedule fields and event signers; argument names that would select a program, an environment or an endpoint; package pins that are not Curator identities; program strings as tool commands; `effort` and the old `capability` need; non-operator principals in `people`; tools posing as reviewers; and action objects inside guards. It cannot make hook arguments exact: per-hook argument schemas come with the provider modules in PC1 (§17).
+All examples validate against the schema. The schema refuses URLs and shell syntax in hook arguments, schedule fields and event signers; argument names that would select a program, an environment or an endpoint; package pins that are not Curator identities; program strings as tool commands; `effort` and the old `capability` need; non-operator principals in `people`; tools posing as reviewers; and action objects inside guards. Since v3 it also refuses the `null` tool form, `context_window_min`, a boolean `policy.enable.tools`, empty ranges, and `field` or `delivery.checks-passed` guards without their arguments. It cannot make the other hooks' arguments exact: their schemas come with the provider modules in PC1 (§17.3).
 
 ## 11. Generality vectors *(decided)*
 
@@ -668,6 +756,8 @@ The module ships a conformance suite. Each vector is a case the model must expre
 | resolutions and reopen | dev-cycle (`closed` resolutions, a decision superseded by a person), automatic resolutions on limit redirects |
 | per-process privacy (views) | cafe (`amount` redacted in team views); views only until a separate store exists (§5.4) |
 | multi-dimensional estimates and capacity | scrum |
+| routes on field values | dev-cycle (review levels, block kinds) |
+| limits on work in progress | the scrum project (`policy.wip`) |
 
 ## 12. The refuter role and decision memory
 
@@ -676,7 +766,7 @@ A draft specification is challenged before it is approved *(decided)*:
 - **Where.** A `challenge` state after a draft (dev-cycle's `spec` workflow and the epic's `hld`), owned by a `refuter` role skill.
 - **Input.** The draft plus board memory: `decision` elements (statement, scope, status, links), the specifications in force and their invariants.
 - **Method: proof by contradiction.** Assume the draft is implemented as written and derive consequences; look for conflicts with recorded decisions, internal contradictions (two acceptance criteria that cannot hold together), unstated assumptions and guards no role can satisfy.
-- **Output: a ledger verdict with a refutation detail** *(proposed; the spelling follows §6.3)*. `accepted` with `no-contradiction` and the list of decisions checked, so the pass is auditable; `changes_requested` with `contradiction` and pairs of claim and decision; `stop_the_line` with `human-decision-needed` when only a person can choose. The same spelling is used in the spec, the examples and the role.
+- **Output: a ledger verdict with a refutation detail** *(the spelling follows §6.3)*. `accepted` with `no-contradiction` and the list of decisions checked, so the pass is auditable; `changes_requested` with `contradiction` and pairs of claim and decision; `stop_the_line` with `human-decision-needed` when only a person can choose. The same spelling is used in the spec, the examples and the role.
 - **Transitions.** `contradiction` → back to the draft; `human-decision-needed` → `decision-needed`, owned by a person, who records a new `decision`; `no-contradiction` → approved.
 
 Agents are good at finding contradictions; what they lack is memory of what was decided. The board supplies it. The refuter's runs on this document are in [`../reviews/`](../reviews/): [`2026-09-24-refuter-v0.md`](../reviews/2026-09-24-refuter-v0.md) on v1 and [`2026-09-24-refuter-v1.md`](../reviews/2026-09-24-refuter-v1.md) on v2.
@@ -686,9 +776,9 @@ Agents are good at finding contradictions; what they lack is memory of what was 
 | File | Shows |
 | --- | --- |
 | [`default.playbook.json`](../examples/default.playbook.json) | today's task-board behaviour (§14) |
-| [`dev-cycle.playbook.json`](../examples/dev-cycle.playbook.json) | delivery with the delivery invariants, inline and Change Request routes, rework limits, `stop_the_line`, the refuter's verdicts, decisions, needs and `ask` |
+| [`dev-cycle.playbook.json`](../examples/dev-cycle.playbook.json) | delivery with the delivery invariants, inline and Change Request routes, check sets `handoff` and `landing`, review levels routed by `field`, `blocked` with block kinds and a repeat limit, rework limits, `stop_the_line`, the refuter's verdicts, decisions, needs and `ask` |
 | [`bug-hunt.playbook.json`](../examples/bug-hunt.playbook.json) | proving findings and offering them to the fixing process through slots |
-| [`scrum/scrum.playbook.json`](../examples/scrum/scrum.playbook.json), [`scrum/project.Playbook.json`](../examples/scrum/project.Playbook.json) | a cadence layer composed over dev-cycle; membership links on the sprint; delegated estimate fields; planning poker; capacity; project-only policy |
+| [`scrum/scrum.playbook.json`](../examples/scrum/scrum.playbook.json), [`scrum/project.Playbook.json`](../examples/scrum/project.Playbook.json), [`scrum/task-board.config.json`](../examples/scrum/task-board.config.json) | a cadence layer composed over dev-cycle; membership links on the sprint; delegated estimate fields; planning poker; capacity; work-in-progress limits; project-only policy; the check sets `handoff` and `landing` in the project's `task-board.config.json` |
 | [`cafe/cafe.playbook.json`](../examples/cafe/cafe.playbook.json), [`cafe/bookkeeping.playbook.json`](../examples/cafe/bookkeeping.playbook.json), [`cafe/project.Playbook.json`](../examples/cafe/project.Playbook.json) | fields, humans, a tool reached through the orchestrator's runtime dependency, timers, a named schedule, signed events and their signer groups, a join, a hand-off with a returned result, privacy, and the project file that enables the tool and the schedule |
 | [`prove2me-style.playbook.json`](../examples/prove2me-style.playbook.json) | missions split into lemmas, each attempt accepted only by a tool (the Lean kernel), as on prove2.me |
 
@@ -719,12 +809,15 @@ The last example is the expressibility check for machine-verified acceptance: pr
 | done is refused while a Change Request exists; inline work passes | `consistency.go:128-141, 158` | guard `delivery.cr-absent` |
 | commit acknowledgement for the enforced types when policy confirms | `version_control.go:89-123, 277-279` | guard `delivery.commit-acknowledged`, `policy.delivery.version_control` |
 | rejection routes to to-dev and records changes requested | `tools/board-cli/cmd/change_request.go:753, 825, 856` | `reviewing → to-dev via reject_cr` with `record.verdict` `changes_requested`, beside the manual route |
-| reviewer verdicts are `accepted`, `changes_requested`, `stop_the_line`; a reviewer's Stop-The-Line parks its element at blocked with a new evidence packet | `pkg/board/goal.go:40-49`; `tools/board-cli/internal/spawnruntime/goal_acceptance.go:51-96, 255-256`; `spawnruntime/changerequest.go:403-405` | `reviewing → blocked` with `outcome.present` for the run's own element and `record.verdict` `stop_the_line` |
+| reviewer verdicts are `accepted`, `changes_requested`, `stop_the_line`; a reviewer's Stop-The-Line parks its element at blocked with a new evidence packet | `pkg/board/goal.go:40-49`; `tools/board-cli/internal/spawnruntime/goal_acceptance.go:51-96, 255-256`; `spawnruntime/changerequest.go:403-405` | `reviewing → blocked` with `outcome.present` for the run's own element and `record.verdict` `stop_the_line`; the ledger gains `rejected` in PC1 |
 | linked blocked items, leaves and containers, release to backlog when blockers finish | `pkg/board/blocked_release.go:8-24, 76-87` | `on: { event: blockers.terminal }` on both workflows |
 | orchestrator (and coordinator) has no lifecycle statuses | `pkg/board/goal_role.go:10-11, 25-33` | `root` |
-| review policy defaults to required | `types.go:106-133` | `policy.review` |
+| review policy defaults to required | `types.go:106-133` | `policy.review` and the field `review` |
 | task class | `types.go:136-141` | field `task_class` |
 | rework loop detection: threshold `max(3, 2 × median)` | `internal/changerequest/loopdetect/loopdetect.go:114, 126-129` | `policy.delivery.loop_detection` (`floor` 3, `factor` 2) |
+| the landing-gate suite `spawn.worktree_isolation.validation.commands`: run by the producer at Change Request build with evidence bound to the candidate tree, re-run by integration when that binding is missing or broken; an absent block refuses integration, an empty list runs nothing | task-board `references/task-board-config.md`, "The landing-gate suite" | a local `landing` check set (§6.12) |
+| child runners per control root, `spawn.max_parallel` | `references/task-board-config.md`, "Spawn policy" | `policy.wip.board` (§6.8) |
+| concurrent heavyweight suites per OS account, `spawn.validation.max_concurrent_suites` (default 2) | same | machine capacity in `~/.curator/runtimes.toml` (§2.3) |
 
 Accepted differences and open points of the mapping:
 
@@ -734,20 +827,21 @@ Accepted differences and open points of the mapping:
 4. Dependency links (`blocked_by`) are kernel data; the configuration refers to them only through `blockers.clear` and `blockers.terminal`.
 5. Loop detection counts rework across Change Request revisions; it stays delivery policy, distinct from a transition `limit`.
 6. `defer_cr` and `withdraw_cr` are not mapped yet.
-7. The review policies `light` and `none` change more than reviewer routing: a `none` item is accepted on the producer's outcome alone (`tools/board-cli/internal/spawnruntime/goal_acceptance.go:167-170`), and the research landing without a Change Request is admitted only with `review=none` (`tools/board-cli/internal/integration/landed_methods.go:553-565`). The default does not express either yet; how a playbook does is open (§17).
-8. The version-control policy lives in `task-board.config.json` today with authority class `project_policy` (`pkg/remoteconfig/authority_schema.go:117`); PC1 decides whether `Playbook.json` or the config owns it, and the other defers. The enforced types are fixed by the delivery module (`version_control.go:18-19`).
+7. Review levels *(decided 2026-09-24)*: the field `review` and the `field` guard express them as routes, as dev-cycle shows. In the default, whose transitions are permissive (`*`), the field changes no route. Two effects stay delivery and ledger behaviour keyed on the same field: the goal ledger accepts a `none` item on the producer's outcome alone (`tools/board-cli/internal/spawnruntime/goal_acceptance.go:167-170`), and the close-landed method `research_outcome_only` admits a research element without a Change Request only with `review=none` and `task_class=research` (`tools/board-cli/internal/integration/landed_methods.go:553-565`). PC1 maps that method onto a `via` command guarded by `field`. `light` differs from `required` today only in the ledger's order of review strength (`pkg/board/goal_mutation.go:268-279`); both route to review.
+8. The version-control policy lives in `task-board.config.json` today with authority class `project_policy` (`pkg/remoteconfig/authority_schema.go:117`). *Decided (2026-09-24):* `Playbook.json` owns it (`policy.delivery.version_control`), and the config's `version_control` keys are read for one release with a warning. The enforced types stay fixed by the delivery module (`version_control.go:18-19`).
 9. The linkless `blocked` state is owned by the orchestrator in the default, because today's kernel does not restrict who unblocks; stricter playbooks give it a human owner.
 10. Evidence freshness (§6.3) is today's rule for reviewer verdicts only; PC1 extends it to approvals and outcomes, which changes nothing the default declares.
+11. The default keeps today's guard `delivery.integration-evidence` on its `integrate` route; that evidence is the result of the `landing` check set (§6.12). Today's key `spawn.worktree_isolation.validation.commands` maps onto `checks.landing` with `where: local`, without a change in behaviour.
 
 ## 15. Integration plan
 
 | Step | Delivers |
 | --- | --- |
-| PC0 | this draft, the schema, the examples; the refuter's first run (v1 → v2) and second run (v2 → v2.1) |
-| PC1 | the module: schema, parser, resolver (`extends`, `uses`, slots), validator CLI with portable and machine checks; a thin seam in task-board that loads the project file at its pinned revision (§2.4) and `default.playbook.json` with identical behaviour or documented differences; new types from `Playbook.json` on the generic engine with the kernel hooks of §6.3; the structured `assignment.role`; the constructor-ready schema (`ui` blocks, lossless round trip). Because the demos follow PC1 directly *(decided)*, PC1 also carries **the minimal delivery seams over today's commands**: `delivery.cr-published`, `delivery.review-ready`, `delivery.cr-accepted`, `delivery.cr-absent`, `delivery.commit-acknowledged` and the evidence and authorization guards mapped onto today's authorization options; `delivery.integrate` mapped onto the orchestrator's `worktree integrate`; and `delivery.integrated`, `delivery.integration-failed` and `delivery.rework-started` emitted when today's integration transaction, its failure, and landed rework, invalidation or convergence complete. It also carries **the local hand-off on one board** (§6.5). |
+| PC0 | this draft, the schema, the examples; the refuter's first run (v1 → v2) and second run (v2 → v2.1); the operator's decisions (v3) and a refuter pass on the sections v3 changed, after which the specification is frozen |
+| PC1 | the module: schema, parser, resolver (`extends`, `uses`, slots), validator CLI with portable and machine checks; a thin seam in task-board that loads the project file from the head of the default branch (§2.4) and `default.playbook.json` with identical behaviour or documented differences; new types from `Playbook.json` on the generic engine with the kernel hooks of §6.3, the `field` guard included; the structured `assignment.role`; `rejected` in the goal ledger; `policy.wip` (§6.8); the version-control policy read from `Playbook.json`, with the config's keys read for one release with a warning; local check sets over today's landing-gate suite (§6.12); the legacy operator layer read from today's config until `models.toml` exists (§2.3); the reference prompt size for speed facts (§9); the constructor-ready schema (`ui` blocks, lossless round trip). Because the demos follow PC1 directly *(decided)*, PC1 also carries **the minimal delivery seams over today's commands**: `delivery.cr-published`, `delivery.review-ready`, `delivery.cr-accepted`, `delivery.cr-absent`, `delivery.commit-acknowledged` and the evidence and authorization guards mapped onto today's authorization options; `delivery.integrate` mapped onto the orchestrator's `worktree integrate`; and `delivery.integrated`, `delivery.integration-failed` and `delivery.rework-started` emitted when today's integration transaction, its failure, and landed rework, invalidation or convergence complete. It also carries **the local hand-off on one board** (§6.5). |
 | Demos (right after PC1) | `dev-cycle`; `bug-hunt` → `dev-cycle`; `scrum` over `dev-cycle` — all on one board *(decided 2026-09-24)*. The cafe with bookkeeping follows PC3 and the waggle amendment |
-| PC2 | role skills and the `curator-playbook-dev-cycle` package on Skillfile schema 2; task-board resolves roles from the project overlay `.roles` first, then installed role skills, then `~/.roles` read-only for one release with a warning; `setup.sh` stops copying `~/.roles` (this is roadmap milestone M1) |
-| PC3 | the delivery module proper: the PC1 seams become a module whose invariants it checks itself; `task-board tick` with the tool executor (§6.9, §6.11) and its scheduler; signed events and approvals once the waggle amendment exists; hand-off across boards through waggle (CM1 and the amendment) |
+| PC2 | role skills and the `curator-playbook-dev-cycle` package on Skillfile schema 2, installed on demand once Curator ships activation `on-demand` and the skills launch channel (§8.1, §8.3), with the description stopgap until then; the JSON Schema of `data/role.json`; task-board resolves roles from the project overlay `.roles` first, then installed role skills, then `~/.roles` read-only for one release with a warning; `setup.sh` stops copying `~/.roles` (this is roadmap milestone M1) |
+| PC3 | the delivery module proper: the PC1 seams become a module whose invariants it checks itself; hosted check sets and the local-mirror rule (§6.12); `task-board tick` with the tool executor (§6.9, §6.11) and its user-level system timer; signed events and approvals once the waggle amendment lands with CM2; hand-off across boards through waggle (CM1 and the amendment) |
 
 PC4 of the earlier plan is dropped *(decided)*: a playbook is a collection of skills. The constructor-ready schema, which the roadmap's PC4 row also carried, is part of PC1, and the Curator changes are the Curator goal (§8.3). The roadmap rows live in the wiki and are updated there. Details: [`track.md`](track.md).
 
@@ -757,13 +851,13 @@ Specifications use technical terms. User-facing material uses the Apiary names *
 
 ## 17. Decisions and open questions
 
-### 17.1 Decided on 2026-09-24
+### 17.1 Decided in the design discussion of 2026-09-24
 
 - the file and its format, and its four core sections;
 - one owner per element in each state, where a state may admit several roles and assignment picks one, with helpers and `one_of`;
 - owner kinds and who may move work out of each; authority outside the model, with signatures for risky human acts;
 - playbooks as data only; side effects enabled by the project; admission by `extends`/`uses`;
-- tools only through Curator skills: the orchestrator's manifest depends on each provider in `runtime` mode narrowed to exported commands, the kernel runs only commands of skills installed through Curator, and a project may rebind or disable a tool (wiki decisions.md:84);
+- tools only through Curator skills: the orchestrator's manifest depends on each provider in `runtime` mode narrowed to exported commands, the kernel runs only commands of skills installed through Curator, and a project may rebind a tool (wiki decisions.md:84);
 - needs without effort; effort in the operator file `~/.curator/models.toml`, with `run` candidate lists and effort ranges (decisions.md:83), and a committed project floor;
 - relaxing a requirement permanently only in the project file, and temporarily through `ask` for the approver's own runs;
 - guards, actions and events from modules; the delivery module and its invariants; `task-board tick` until the main loop;
@@ -772,41 +866,48 @@ Specifications use technical terms. User-facing material uses the Apiary names *
 - the static validator with portable and machine checks; the generality vectors, including per-process privacy as a views vector; the refuter;
 - the demos dev-cycle, bug-hunt and Scrum right after PC1; PC4 dropped; the default playbook as the PC1 target.
 
-### 17.2 The decisions of the second refuter run
+### 17.2 The operator's decisions on v2.1
 
-| # | Decision | Status | What v2.1 applies |
-| --- | --- | --- | --- |
-| H1 | where the kernel reads authority-bearing configuration; what an unsigned human act means; who binds event signers | **PROPOSED default** | the committed file at a pinned revision, recorded with its digest (§2.4); without a signature policy an operator's CLI act outside any run counts as human, called a guardrail, not a boundary (§4.2); signer groups bound in the committed project file (§6.9) |
-| H2 | what automatic selection may admit without an operator file | **PROPOSED default** | project admission ∩ machine facts ∩ needs; no metered runtime unless the project admits one; the choice and its reason printed; agent-selection §7 and LP D9 amended (§2.3, §9) |
-| H3 | the tool mechanism | decided for the mechanism (decisions.md:84); **PROPOSED default** for the enable gate | runtime dependency of the orchestrator narrowed to commands; providers outside the collection; `policy.enable.tools`; `null` disables; no tools without Curator (§8.4, §8.5) |
-| H4 | the committed effort floor | decided: keep it | per-row semantics and a typed unmet path (§9) |
-| H5 | agent-selection S1's need vocabulary | **PROPOSED default** | adopted: `class`, `capabilities`, `context_window_min`, `reasoning`, beside `publisher`, `family`, `local`, `not_same_publisher_as` (§9) |
-| H6 | which demos run after PC1; the roadmap's PC rows | decided: dev-cycle, bug-hunt and Scrum right after PC1; PC4 dropped | PC1 carries the minimal delivery seams and the local hand-off; the constructor-ready schema moves into PC1 (§15) |
-| H7 | a waggle amendment for board approvals, signed events, service principals, hand-off results and user verification | a dependency, owned by the waggle specification; `user_verified` is a **PROPOSED default** | described in §4.2, §6.5 and §6.9 and listed in the track; this repository does not edit waggle |
-| H8 | one owner per element; per-process privacy; the refuter's verdicts in the glossary | decided | "each element has exactly one owner in each state; a state may admit several roles and assignment picks one" (§0, §6.1); privacy restored as a views vector (§5.4, §11); the wiki's decision record and glossary are updated outside this repository |
+| # | Decision | Sections |
+| --- | --- | --- |
+| 1 | every resolution the author proposed in answer to both refuter runs is decided | throughout |
+| 2 (H1) | the kernel reads `Playbook.json` from the head of the default branch of the repository that owns the board, never the Story's integration base and never the working tree; validator, previews and a constructor read the working tree; a project without git reads the file as it is and warns | §2.4 |
+| 3 (H1) | without a signature policy an operator's CLI act outside any run counts as human, stated as a guardrail; the session host marks hosted sessions as `session`; the validator warns about human-owned states without `policy.signatures` | §4.2, §10 |
+| 4 (H7) | `user_verified` defaults to `required` for approvals, relaxations and halts whenever a project sets a signature policy; the project may lower it to `if-supported` | §4.2 |
+| 5 (H7) | the waggle amendment — a board class for approvals and signed transitions, an event class with expiry and de-duplication, a service principal kind admitted only for that class, a `coord` type that returns a hand-off's result, user verification available to board policy — is written into the waggle specification now and implemented with CM2 | §4.2, §6.5, §6.9, track |
+| 6 (H2) | without `models.toml` automatic selection never chooses a metered runtime; only the operator's own file admits metered billing; the project only narrows; an undeterminable billing class counts as metered; no questions mid-run, a command writes the choice | §2.3, §9 |
+| 7 (H5) | one need vocabulary: every term in `require` or `prefer`; ranges for `context_window`, `pp`, `tg`, `ttft`; speed facts measured, else declared by the registry, else unknown | §9, schema |
+| 8 | an exception that expires mid-run lets the run finish; exceptions never widen `[allow]`; standing answers in `models.toml` `[answers]`, recorded on the board, never applied when relaxations need signatures | §2.3, §9 |
+| 9 (H3) | a tool runs only when listed in `policy.enable.tools` (names or `all`); not listed means disabled; no `null` form | §8.5, §6.11, schema |
+| 10 | a user-level system timer (launchd, systemd user timer) calls `task-board tick`; the Keeper takes it over later | §6.9, §6.11 |
+| 11 | role skills and the root orchestrator's skill install with Curator activation `on-demand` and reach a launch through the skills launch channel; description stopgap until Curator ships it | §8.1, §8.2, §8.3, §15 |
+| 12 | role metadata in `data/role.json` with its own JSON Schema (PC2) | §8.1, §15 |
+| 13 | the `field` guard; review levels as a field with routes | §6.3, §10, §14 |
+| 14 | the goal ledger gains `rejected` | §6.3, §10, §14, §15 |
+| 15 | process rules in `Playbook.json`, runtime and board settings in `task-board.config.json`, model choices and machine limits with the operator; legacy keys read for one release | §2.1, §2.3, §6.8, §14 |
+| 16 | the operator's files live together under `~/.curator/`: `models.toml`, `runtimes.toml`, `engines.toml`, `network.toml` | §2.3 |
+| 17 | `policy.wip` bounds active runs per board, role and state | §6.8, §14 |
+| 18 | dev-cycle gains `blocked` with a required `block_kind` and a repeat limit escalating to the operator; the default is unchanged | dev-cycle example |
+| 19 | per-element skills and preferences are future work after PC1 | §9 |
+| 20 | check sets: playbooks name them, `task-board.config.json` runs them locally, on the hosting provider, or both | §6.3, §6.12, §14, §15 |
+
+H4 (keep the effort floor), H6 (the demos and the PC rows) and H8 (one owner per element in each state; privacy as a views vector; the refuter's verdicts) were decided earlier and stand.
 
 ### 17.3 Open questions
 
-1. **H1.** Is the pinned revision the Story's integration base, or always the default branch? When a project sets no signature policy, are unsigned human acts accepted (the default here), or are human-owned transitions, approvals and relaxations signed by default? May a preview read non-authority sections from the working tree? What does a board without git pin?
-2. **H2.** May automatic selection ever admit a metered runtime? Should the first automatic choice instead ask once and write the operator file?
-3. **H3.** Does tool invocation need `policy.enable.tools` (the default here), or does admission through `uses` suffice? Is `null` the form that disables a tool?
-4. **H5.** Confirm agent-selection S1's terms and the amended spelling of agent-selection §3 (`require`, `prefer`, `reasoning: true`), or change roadmap M4's done-when.
-5. **H7.** The waggle amendment, for the waggle specification's owner: a board class for approvals and signed transitions (`approve.board.v1@waggle`), an event class with waggle's expiry and de-duplication, a service principal kind admitted only for that class (`svc:` in the examples), and a `coord` type that returns a hand-off's result. Does `user_verified: required` (the default here for approvals, relaxations and halts) shut out operators whose keys cannot show user verification, such as Secure Enclave keys, or do they approve with a second approver instead?
-6. Exception records for `ask` (§9): storage format, expiry during a running run, interaction with the operator file's `[allow]`.
-7. How role skills are kept from triggering in sessions that do not run that role, once they are installed into the project.
-8. `data/role.json` or skill frontmatter for role metadata.
-9. Whether `Playbook.json` or `task-board.config.json` owns the version-control policy (§14 point 8), and where agent-selection's shared runtimes and validation settings go.
-10. How the review policies `light` and `none` are expressed (§14 point 7).
-11. Per-hook argument schemas for every provider module (PC1).
-12. Whether the goal ledger gains `rejected` for goal types (§6.3).
-13. The other open points of the mapping in §14.
-14. Outside this repository: the wiki's decision record (one owner per element in each state, the privacy vector), its glossary (the owner wording, the refuter's verdicts and their spelling), the roadmap's PC rows and its open item on the operator file's name, and the supersession note in skill-project-management `playbooks.md` (in PR #389, open).
+1. **First start without `models.toml`.** What the first launch shows an operator who has no file: whether a guided command proposes bindings for the project's roles from the runtimes installed on the machine, and how a refusal explains the missing admission (§2.3, §9).
+2. **Commands for the operator's files.** Proposal, pending the operator: one command family through the `curator` umbrella — `curator models`, `curator runtimes`, `curator inference engines`, `curator network` — that lists, shows, adds, sets and removes entries, keeps comments and order, validates before writing, writes atomically with a backup and mode 0600, never stores a secret value, offers `--json`, and from inside an agent session refuses any change that widens admission (`[allow]`, `[answers]`).
+3. **The reference prompt size** for `pp` and `ttft` measurements (PC1, §9).
+4. **Per-hook argument schemas** for every provider module (PC1). The schema covers the arguments of `field` and `delivery.checks-passed` already.
+5. **The remaining mapping points of §14**: `defer_cr` and `withdraw_cr`, and the close-landed methods as `via` commands (PC1).
+6. **How a process is created and registered in a hive**: the Keeper's process registry, outside this specification (wiki open questions).
+7. **Outside this repository**: this text amends agent-selection §3, §7 and §8 and LP D2 and D9; the drafts in skill-project-management take the amendments when those tracks resume. The waggle amendment lands in the waggle repository; on-demand skills land in Curator (curator-spec issue #91, curator issue #91).
 
-**What this means for PC1.** PC1 can start now. It implements the decided parts as written and the PROPOSED defaults as stated, and each default sits in one rule: the pinned revision (§2.4), the signature fields (§4.2), the tool enable gate (§8.5), and selection and its vocabulary (§9). An answer to open questions 1–5 therefore changes that rule and nothing around it. The waggle amendment gates PC3 and the cafe demo only; the three first demos need none of the open answers.
+**What this means for PC1.** PC1 can start now: everything it implements is decided. The waggle amendment gates PC3's signed acts and the cafe demo only; Curator's on-demand skills gate PC2's clean install, with the description stopgap until then. The three first demos need none of the open answers.
 
 ## 18. Change log: v1 → v2
 
-Each finding of the refuter's first run ([`../reviews/2026-09-24-refuter-v0.md`](../reviews/2026-09-24-refuter-v0.md)) and where v2 answers it. Section numbers in this table refer to v2; v2.1 keeps them, except that the open questions of §17 were renumbered (§17.3).
+Each finding of the refuter's first run ([`../reviews/2026-09-24-refuter-v0.md`](../reviews/2026-09-24-refuter-v0.md)) and where v2 answers it. Section numbers in this table refer to v2; v2.1 keeps them, except that the open questions of §17 were renumbered (§17.3). v3 keeps them too, adds §6.12 and §20, and replaces §17.2 and §17.3, so references to open questions in §18 and §19 name the v2 and v2.1 lists.
 
 | Finding | Resolution in v2 |
 | --- | --- |
@@ -849,7 +950,7 @@ Each finding of the refuter's first run ([`../reviews/2026-09-24-refuter-v0.md`]
 
 ## 19. Change log: v2 → v2.1
 
-Each finding of the refuter's second run ([`../reviews/2026-09-24-refuter-v1.md`](../reviews/2026-09-24-refuter-v1.md)) and where v2.1 answers it. H1–H8 are in §17.2.
+Each finding of the refuter's second run ([`../reviews/2026-09-24-refuter-v1.md`](../reviews/2026-09-24-refuter-v1.md)) and where v2.1 answers it. The statuses of H1–H8 in this section are those of v2.1; §17.2 and §20 record the operator's decisions.
 
 ### New findings
 
@@ -908,3 +1009,30 @@ Each finding of the refuter's second run ([`../reviews/2026-09-24-refuter-v1.md`
 | F32 privacy | H8 decided: per-process privacy is a views vector again (§5.4, §11) |
 | F34 where the specification lives | outside this repository: the wiki roadmap rows, and the supersession note in skill-project-management PR #389 (open question 14) |
 | F35 goal ledger | closed through N22: verdicts use the ledger's vocabulary (§6.3) |
+
+## 20. Change log: v2.1 → v3
+
+The operator's decisions of 2026-09-24 (§17.2) and where v3 applies them.
+
+| Decision | Change in v3 |
+| --- | --- |
+| 1 author's resolutions | every *proposed* marker removed; the statements are decided (header, §4.2, §6.1–§6.11, §7, §8.2, §9, §12) |
+| 2 revision in force (H1) | the head of the default branch of the repository that owns the board, whatever Story is in scope; no branch or fork runs its own rules; no-git projects warn (§0, §2.4) |
+| 3 unsigned human acts (H1) | the guardrail stated as decided; the session host marks hosted sessions; validator warning (§4.2, §10) |
+| 4 user verification (H7) | `required` by default for approvals, relaxations and halts when a project sets a signature policy; `if-supported` as the project's opt-down; Secure Enclave keys named (§4.2; schema) |
+| 5 waggle amendment (H7) | written into the waggle specification now, implemented with CM2 (§1, §4.2, §17.2; track) |
+| 6 selection without the operator file (H2) | never metered; only the operator's file admits metered billing; undeterminable billing counts as metered; a command writes the choice; first start open (§2.3, §9, §17.3) |
+| 7 need vocabulary (H5) | every term in `require` or `prefer`; ranges; `context_window` replaces `context_window_min`; speed terms `pp`, `tg`, `ttft`; speed facts measured, declared or unknown (§9; schema; dev-cycle) |
+| 8 exceptions and standing answers | expiry lets running runs finish; exceptions never widen `[allow]`; `[answers]` in `models.toml` (§2.3, §9) |
+| 9 tool enable gate (H3) | `policy.enable.tools` lists tools or says `all`; not listed means disabled; the `null` form removed (§3, §8.5, §6.11; schema) |
+| 10 tick scheduler | a user-level system timer; the Keeper later (§0, §6.9, §6.11; track) |
+| 11 on-demand role skills | Curator activation `on-demand` and the skills launch channel, identity delivery, description stopgap; Curator's third change (§0, §8.1, §8.2, §8.3, §8.4, §15; track) |
+| 12 role metadata | `data/role.json`, not frontmatter, with its own JSON Schema in PC2 (§8.1, §15) |
+| 13 field conditions | the kernel guard `field`; review levels as routes; the guard-bypass exception for disjoint conditions (§5.2, §6.3, §6.8, §10, §11, §14; schema; dev-cycle) |
+| 14 `rejected` | the goal ledger gains it in PC1; the validator's refusal removed (§6.3, §10, §14, §15) |
+| 15 where settings live | the project's three files; process rules in `Playbook.json`; legacy keys read for one release; model keys and machine limits with the operator (§2.1, §2.3, §6.8, §9, §14) |
+| 16 operator files together | `~/.curator/models.toml`, `runtimes.toml`, `engines.toml`, `network.toml`; LP D2 and the network file location amended (§2.3) |
+| 17 work in progress | `policy.wip` with `board`, `per_role`, `per_state` on active runs; `spawn.max_parallel` maps onto it (§6.8, §14; schema; scrum project) |
+| 18 block kinds | dev-cycle's `blocked` state, `block_kind` field and repeat limit (dev-cycle example) |
+| 19 per-element needs | marked *future* (§9) |
+| 20 check sets | `delivery.checks-passed` and `delivery.integrate`'s `checks`; `checks` in `task-board.config.json`; local, hosted or both; per task class; the local-mirror rule (§6.3, §6.12, §14, §15; schema; dev-cycle) |

@@ -2,7 +2,7 @@
   "$schema": "../schema/playbook-v1.schema.json",
   "schema_version": 1,
   "name": "dev-cycle",
-  "description": "Software delivery with a producer-reviewer loop, a refuter on specifications and decisions as board memory. Change Request work is reviewed only after publication and waits in accepted until its story integrates; inline work without a Change Request is reviewed and finishes directly, so the delivery invariants hold (spec section 6.10). Template of the curator-playbook-dev-cycle package (skills/orchestrator/data/playbook.json).",
+  "description": "Software delivery with a producer-reviewer loop, a refuter on specifications and decisions as board memory. Change Request work is reviewed only after publication and waits in accepted until its story integrates; inline work without a Change Request is reviewed and finishes directly, or skips review when its review field says none, so the delivery invariants hold (spec section 6.10). The check set handoff gates review and the check set landing gates the story's integration (spec section 6.12). A blocked element records why, and repeated blocks escalate to a person. Template of the curator-playbook-dev-cycle package (skills/orchestrator/data/playbook.json).",
   "root": "orchestrator",
   "roles": {
     "orchestrator": { "skill": "dev-orchestrator", "capability": "orchestrator" },
@@ -25,7 +25,7 @@
     "refuter": {
       "skill": "dev-refuter",
       "capability": "reviewer",
-      "needs": { "require": { "reasoning": true, "context_window_min": 200000 } },
+      "needs": { "require": { "reasoning": true, "context_window": { "min": 200000 } } },
       "description": "Tries to refute a draft against recorded decisions. Records the ledger verdicts with a refutation detail: accepted/no-contradiction, changes_requested/contradiction, stop_the_line/human-decision-needed (spec section 12)."
     },
     "researcher": { "skill": "dev-researcher", "capability": "analyst" },
@@ -52,6 +52,17 @@
           "values": ["code", "metadata", "docs", "research"],
           "default": "code",
           "description": "Code work goes through a Change Request; metadata and research work is usually inline and takes the route guarded by delivery.cr-absent."
+        },
+        "review": {
+          "type": "enum",
+          "values": ["required", "light", "none"],
+          "default": "required",
+          "description": "Review level; policy.review.default seeds it. none lets inline work finish on the producer's outcome; work under a Change Request always needs a reviewer's acceptance (invariants 2 and 3)."
+        },
+        "block_kind": {
+          "type": "enum",
+          "values": ["dependency", "needs-input", "capability", "transient"],
+          "description": "Why the element is blocked; set on every entry into blocked."
         }
       },
       "estimates": [
@@ -59,7 +70,13 @@
         { "name": "duration", "scale": "hours" }
       ]
     },
-    "research-task": { "parents": ["epic", "story"], "workflow": "research" },
+    "research-task": {
+      "parents": ["epic", "story"],
+      "workflow": "research",
+      "fields": {
+        "review": { "type": "enum", "values": ["required", "light", "none"], "default": "required", "description": "none: the outcome closes the research without a review." }
+      }
+    },
     "design-task": { "parents": ["story"], "workflow": "spec" },
     "decision": {
       "parents": ["epic"],
@@ -114,8 +131,8 @@
           "from": "in-progress",
           "to": "integrating",
           "guards": [{ "guard": "children.in", "states": ["accepted", "approved", "done", "closed"] }],
-          "actions": ["delivery.integrate"],
-          "description": "The join lists every terminal state of every contained type (dev-task: done, closed; research-task: done, closed; design-task: approved, closed) plus the dev-task's waiting state accepted. A unit with no accepted revision integrates at once."
+          "actions": [{ "action": "delivery.integrate", "checks": "landing" }],
+          "description": "The join lists every terminal state of every contained type (dev-task: done, closed; research-task: done, closed; design-task: approved, closed) plus the dev-task's waiting state accepted. The check set landing gates the integration: delivery.integrated is emitted only after it passed on the exact tree or head that lands. A unit with no accepted revision integrates at once."
         },
         { "from": "integrating", "to": "done", "on": { "event": "delivery.integrated" } },
         {
@@ -138,7 +155,12 @@
           "locked": true,
           "description": "Accepted Change Request revision waiting for its story's integration; the leaf never reaches done before integration."
         },
-        "escalated": { "owner": "operator", "description": "The rework loop hit its limit, or the reviewer stopped the line; a person decides." },
+        "escalated": { "owner": "operator", "description": "The rework loop hit its limit, the reviewer stopped the line, or the element kept getting blocked; a person decides." },
+        "blocked": {
+          "owner": "orchestrator",
+          "requires": [{ "guard": "fields.present", "fields": ["block_kind"] }],
+          "description": "Work cannot continue. block_kind says why: a dependency on other work, input only a person can give, a missing capability, or a transient failure."
+        },
         "done": { "terminal": true },
         "closed": { "terminal": true, "resolution": ["wont-do", "duplicate", "obsolete"] }
       },
@@ -147,9 +169,28 @@
         {
           "from": "development",
           "to": "review",
-          "guards": ["checklist.complete", "outcome.present", "delivery.review-ready"],
+          "guards": [
+            "checklist.complete",
+            "outcome.present",
+            "delivery.review-ready",
+            { "guard": "delivery.checks-passed", "set": "handoff" },
+            { "guard": "field", "name": "review", "in": ["required", "light"] }
+          ],
           "actions": ["spawn.owner"],
-          "description": "Stricter than invariant 3: work under a Change Request is reviewed only after its revision is published; inline work without one is reviewed directly."
+          "description": "Stricter than invariant 3: work under a Change Request is reviewed only after its revision is published; inline work without one is reviewed directly. The check set handoff must pass on what is handed off."
+        },
+        {
+          "from": "development",
+          "to": "done",
+          "guards": [
+            { "guard": "field", "name": "review", "is": "none" },
+            "checklist.complete",
+            "outcome.present",
+            { "guard": "delivery.checks-passed", "set": "handoff" },
+            "delivery.cr-absent",
+            "delivery.commit-acknowledged"
+          ],
+          "description": "Inline work whose review level is none finishes on the producer's outcome. Work under a Change Request cannot take this route (delivery.cr-absent), so it still needs a reviewer's acceptance."
         },
         {
           "from": "review",
@@ -169,6 +210,15 @@
         { "from": "accepted", "to": "done", "on": { "event": "delivery.integrated" }, "description": "Emitted for every element of the integration unit when the story lands." },
         { "from": "accepted", "to": "development", "on": { "event": "delivery.rework-started" }, "description": "A rollback of the accepted revision (landed rework, invalidation)." },
         { "from": "escalated", "to": "development" },
+        {
+          "from": ["open", "development", "review"],
+          "to": "blocked",
+          "limit": { "max": 3, "then": "escalated" },
+          "description": "Every entry records block_kind (the state requires it). The fourth block of one element goes to the operator instead."
+        },
+        { "from": "blocked", "to": "open", "on": { "event": "blockers.terminal" }, "description": "A dependency block releases when its last blocker ends." },
+        { "from": "blocked", "to": "development", "guards": ["blockers.clear"], "actions": ["spawn.owner"], "description": "The orchestrator resumes the work once the cause is gone." },
+        { "from": "blocked", "to": "escalated", "description": "Input only a person can give, or a capability nobody has." },
         { "from": "*", "to": "closed" }
       ]
     },
@@ -202,7 +252,8 @@
       },
       "transitions": [
         { "from": "open", "to": "researching", "actions": ["spawn.owner"] },
-        { "from": "researching", "to": "review", "guards": ["outcome.present"] },
+        { "from": "researching", "to": "review", "guards": ["outcome.present", { "guard": "field", "name": "review", "in": ["required", "light"] }] },
+        { "from": "researching", "to": "done", "guards": ["outcome.present", { "guard": "field", "name": "review", "is": "none" }], "description": "Research whose review level is none closes on its outcome." },
         { "from": "review", "to": "researching", "guards": [{ "guard": "verdict", "is": "changes_requested" }] },
         { "from": "review", "to": "escalated", "guards": [{ "guard": "verdict", "is": "stop_the_line" }] },
         { "from": "review", "to": "done", "guards": [{ "guard": "verdict", "is": "accepted" }] },

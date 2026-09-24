@@ -1,7 +1,7 @@
 {
   "$schema": "../../schema/playbook-v1.schema.json",
   "schema_version": 1,
-  "description": "A project running Scrum cadence over dev-cycle delivery. Both playbooks are admitted by uses; the work-item slot is bound to dev-cycle's story and the delivery slot to dev-cycle itself; the scrum orchestrator is the root and dev-cycle's orchestrator keeps story-level states. Only this file, read at its committed revision, enables automatic spawns, binds people, delegates the estimate fields (by binding the work-item slot), sets effort floors and the data policy, and decides which human acts need signatures.",
+  "description": "A project running Scrum cadence over dev-cycle delivery. Both playbooks are admitted by uses; the work-item slot is bound to dev-cycle's story and the delivery slot to dev-cycle itself; the scrum orchestrator is the root and dev-cycle's orchestrator keeps story-level states. Only this file, read at its committed revision, enables automatic spawns, binds people, delegates the estimate fields (by binding the work-item slot), bounds work in progress, sets effort floors and the data policy, and decides which human acts need signatures.",
   "uses": ["dev-cycle", "scrum"],
   "bind": { "scrum.work-item": "story", "scrum.delivery": "dev-cycle" },
   "root": "scrum-orchestrator",
@@ -21,6 +21,7 @@
   "policy": {
     "goals": { "orchestrator_goal": { "scrum-orchestrator": "sprint", "dev-cycle.orchestrator": "story" } },
     "effort_floor": { "dev-cycle.reviewer": "medium" },
+    "wip": { "board": 6, "per_role": { "dev-cycle.developer": 3, "dev-cycle.reviewer": 2 } },
     "enable": { "auto_spawn": true },
     "signatures": {
       "require_for": ["approvals", "relaxations", "halts", "human-transitions"],

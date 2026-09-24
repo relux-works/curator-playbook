@@ -1,7 +1,7 @@
 {
   "$schema": "../../schema/playbook-v1.schema.json",
   "schema_version": 1,
-  "description": "A cafe project composing cafe-ops with bookkeeping. Only this file, read at its committed revision, binds people and event signer groups, enables the supplier tool, the weekly schedule and automatic spawns, sets the data policy and decides which human acts need signatures. Principals follow waggle; the service kind svc: is proposed in the pending waggle amendment.",
+  "description": "A cafe project composing cafe-ops with bookkeeping. Only this file, read at its committed revision, binds people and event signer groups, enables the supplier tool, the weekly schedule and automatic spawns, sets the data policy and decides which human acts need signatures. Principals follow waggle; the service kind svc: comes with the waggle amendment (spec section 17). Tools the project does not list in policy.enable.tools stay disabled.",
   "uses": ["cafe-ops", "bookkeeping"],
   "bind": { "cafe-ops.accounting-process": "bookkeeping", "cafe-ops.invoice": "bookkeeping.invoice" },
   "root": "cafe-orchestrator",

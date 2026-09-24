@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/relux-works/curator-playbook/schema/playbook-v1.schema.json",
-  "title": "Playbook.json (draft v2.1, schema_version 1)",
-  "description": "Process configuration for agent systems. DRAFT v2.1, not normative; see spec/process-configuration.md. A playbook is data only: it never names a program, script, webhook or URL (spec section 8.5). The schema refuses URLs and shell syntax in hook arguments, schedule fields, event signers and package pins, but only the per-hook argument schemas of the provider modules (PC1) make hook arguments exact. Keys starting with x- are reserved for extensions and ignored by the kernel.",
+  "title": "Playbook.json (draft v3, schema_version 1)",
+  "description": "Process configuration for agent systems. DRAFT v3, not normative until frozen; see spec/process-configuration.md. A playbook is data only: it never names a program, script, webhook or URL (spec section 8.5). The schema refuses URLs and shell syntax in hook arguments, schedule fields, event signers and package pins, and checks the arguments of the field and delivery.checks-passed guards; the per-hook argument schemas of the other provider hooks come with the provider modules (PC1). Keys starting with x- are reserved for extensions and ignored by the kernel.",
   "type": "object",
   "required": [
     "$schema",
@@ -93,20 +93,12 @@
     },
     "tools": {
       "type": "object",
-      "description": "Tool names bound to commands exported by skills installed through Curator (spec section 8.5). A template's binding is admitted only when its orchestrator skill's manifest declares the provider in runtime mode narrowed to that command. A project may rebind a tool, or disable it with null. A bound tool runs only when the project enables it (policy.enable.tools).",
+      "description": "Tool names bound to commands exported by skills installed through Curator (spec section 8.5). A template's binding is admitted only when its orchestrator skill's manifest declares the provider in runtime mode narrowed to that command. A project may rebind a tool. A bound tool runs only when the project lists it in policy.enable.tools.",
       "propertyNames": {
         "$ref": "#/$defs/hook-name"
       },
       "additionalProperties": {
-        "oneOf": [
-          {
-            "$ref": "#/$defs/tool-binding"
-          },
-          {
-            "type": "null",
-            "description": "Project only: the tool is disabled; states it owns cannot be entered."
-          }
-        ]
+        "$ref": "#/$defs/tool-binding"
       }
     },
     "people": {
@@ -435,7 +427,7 @@
       "patternProperties": {
         "^x-": {}
       },
-      "description": "A requirement or preference stated in portable terms, agent-selection S1's vocabulary; never a concrete model id, runtime or effort (effort lives in the operator file; a project may set a floor in policy.effort_floor).",
+      "description": "A requirement (in require) or a preference (in prefer) stated in portable terms: agent-selection S1's vocabulary plus speed. Never a concrete model id, runtime or effort (effort lives in the operator file; a project may set a floor in policy.effort_floor). Speed terms are evaluated against measured facts, else the registry's declared typical ranges, else they are unknown (spec section 9).",
       "properties": {
         "publisher": {
           "$ref": "#/$defs/string-or-list"
@@ -451,10 +443,9 @@
           "uniqueItems": true,
           "description": "Model capabilities from the module registry's vocabulary, for example tool-use."
         },
-        "context_window_min": {
-          "type": "integer",
-          "minimum": 1,
-          "description": "Minimum context window in tokens."
+        "context_window": {
+          "$ref": "#/$defs/range",
+          "description": "Context window in tokens. Replaces context_window_min."
         },
         "reasoning": {
           "type": "boolean",
@@ -465,7 +456,19 @@
         },
         "not_same_publisher_as": {
           "$ref": "#/$defs/qualified",
-          "description": "Independence: differ from the publisher recorded in the provenance of the run of that role that produced the evidence under review (spec section 9)."
+          "description": "Independence: differ from the publisher recorded in the provenance of the run of that role that produced the evidence under review (spec section 9). In prefer it ranks rows of another publisher first."
+        },
+        "pp": {
+          "$ref": "#/$defs/range",
+          "description": "Prompt processing speed in tokens per second, measured at the reference prompt size (spec section 9)."
+        },
+        "tg": {
+          "$ref": "#/$defs/range",
+          "description": "Token generation speed in tokens per second (spec section 9)."
+        },
+        "ttft": {
+          "$ref": "#/$defs/range",
+          "description": "Time to first token in seconds, measured at the reference prompt size (spec section 9)."
         }
       }
     },
@@ -544,7 +547,7 @@
               "$ref": "#/$defs/duration"
             }
           },
-          "description": "Proposed defaults for an ask approval; the approval binds to the approving principal and that principal's own runs (spec section 9)."
+          "description": "Defaults for an ask approval: its scope and expiry. The approval binds to the approving principal and that principal's own runs; an operator may answer it in advance in the operator file's [answers] (spec section 9)."
         },
         "degraded_state": {
           "$ref": "#/$defs/identifier",
@@ -570,7 +573,7 @@
         },
         "skill": {
           "$ref": "#/$defs/identifier",
-          "description": "agent: the role skill, by installed skill name."
+          "description": "agent: the role skill, by installed skill name. Role skills install with Curator activation on-demand and reach only the launches that run their role (spec section 8.1)."
         },
         "who": {
           "$ref": "#/$defs/identifier",
@@ -1502,7 +1505,42 @@
                 "none"
               ]
             }
-          }
+          },
+          "description": "The default of the element field review for new elements; routes select on the field with the field guard (spec sections 6.3, 6.8)."
+        },
+        "wip": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "board": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Active runs of the whole board."
+            },
+            "per_role": {
+              "type": "object",
+              "propertyNames": {
+                "$ref": "#/$defs/qualified"
+              },
+              "additionalProperties": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "description": "Active runs per role."
+            },
+            "per_state": {
+              "type": "object",
+              "propertyNames": {
+                "$ref": "#/$defs/hook-name"
+              },
+              "additionalProperties": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "description": "Active runs working elements in a state: <workflow>.<state>, or a bare state name for that state in every workflow."
+            }
+          },
+          "description": "Limits on work in progress: when starting a run would exceed a limit, the kernel does not start it and reports wip_limit_reached; the start proceeds when a run ends. Machine capacity is separate and lives in the operator's runtimes.toml (spec sections 2.3, 6.8)."
         },
         "capacity": {
           "type": "array",
@@ -1575,7 +1613,7 @@
                 ]
               },
               "uniqueItems": true,
-              "description": "Billing classes the project admits. Absent: subscription and local."
+              "description": "Billing classes the project admits. It only narrows: metered rows also need the operator's own admission in models.toml, and without that file automatic selection never chooses a metered runtime. Absent: subscription and local (spec section 9)."
             },
             "local_only": {
               "type": "boolean"
@@ -1629,7 +1667,7 @@
             "schedules": {
               "oneOf": [
                 {
-                  "type": "boolean"
+                  "const": "all"
                 },
                 {
                   "type": "array",
@@ -1638,7 +1676,8 @@
                   },
                   "uniqueItems": true
                 }
-              ]
+              ],
+              "description": "Schedules that take effect: all, or the named ones."
             },
             "auto_spawn": {
               "type": "boolean"
@@ -1650,7 +1689,7 @@
             "tools": {
               "oneOf": [
                 {
-                  "type": "boolean"
+                  "const": "all"
                 },
                 {
                   "type": "array",
@@ -1660,7 +1699,7 @@
                   "uniqueItems": true
                 }
               ],
-              "description": "Tools whose commands the kernel may run: all bound tools, or the named ones (spec section 8.5)."
+              "description": "Tools whose commands the kernel may run: all bound tools, including tools that later template versions add, or the named ones. A tool that is not listed is disabled and the states it owns cannot be entered (spec section 8.5)."
             }
           },
           "description": "Project only: side effects a package may propose but only the project turns on: schedules, automatic spawns, tool invocations, relaxations (spec section 8.5)."
@@ -1703,10 +1742,11 @@
                 "required",
                 "if-supported"
               ],
-              "description": "Whether each required signature must carry the user-verified flag (a FIDO2 signature with user verification, waggle section 4.4). Proposed default: required for approvals, relaxations and halts (spec section 4.2)."
+              "description": "Whether each required signature must carry the user-verified flag (a FIDO2 signature with user verification, waggle section 4.4). Default required for approvals, relaxations and halts whenever the project sets a signature policy; a project whose operators hold keys that cannot show user verification lowers it to if-supported (spec section 4.2).",
+              "default": "required"
             }
           },
-          "description": "Project only: which human acts need a waggle approver signature, at what key assurance, and whether the signature must show user verification (spec section 4.2). Signed board acts need the pending waggle amendment (spec section 17, H7)."
+          "description": "Project only: which human acts need a waggle approver signature, at what key assurance, and whether the signature must show user verification (spec section 4.2). Signed board acts need the waggle amendment, implemented with CM2 (spec section 17)."
         },
         "delivery": {
           "type": "object",
@@ -1740,7 +1780,8 @@
                 "required": [
                   "desired_commit_time"
                 ]
-              }
+              },
+              "description": "Commit acknowledgement policy. Owned by Playbook.json since v3; task-board.config.json's version_control keys are read for one release with a warning (spec sections 2.1, 14)."
             },
             "loop_detection": {
               "type": "object",
@@ -1902,7 +1943,124 @@
           },
           "additionalProperties": {
             "$ref": "#/$defs/argument-value"
-          }
+          },
+          "allOf": [
+            {
+              "if": {
+                "properties": {
+                  "guard": {
+                    "const": "field"
+                  }
+                }
+              },
+              "then": {
+                "required": [
+                  "name"
+                ],
+                "properties": {
+                  "name": {
+                    "$ref": "#/$defs/field-name"
+                  },
+                  "is": {
+                    "type": [
+                      "string",
+                      "number",
+                      "boolean"
+                    ]
+                  },
+                  "in": {
+                    "type": "array",
+                    "items": {
+                      "type": [
+                        "string",
+                        "number",
+                        "boolean"
+                      ]
+                    },
+                    "minItems": 1,
+                    "uniqueItems": true
+                  },
+                  "lt": {
+                    "type": [
+                      "number",
+                      "string"
+                    ]
+                  },
+                  "lte": {
+                    "type": [
+                      "number",
+                      "string"
+                    ]
+                  },
+                  "gt": {
+                    "type": [
+                      "number",
+                      "string"
+                    ]
+                  },
+                  "gte": {
+                    "type": [
+                      "number",
+                      "string"
+                    ]
+                  }
+                },
+                "oneOf": [
+                  {
+                    "required": [
+                      "is"
+                    ]
+                  },
+                  {
+                    "required": [
+                      "in"
+                    ]
+                  },
+                  {
+                    "required": [
+                      "lt"
+                    ]
+                  },
+                  {
+                    "required": [
+                      "lte"
+                    ]
+                  },
+                  {
+                    "required": [
+                      "gt"
+                    ]
+                  },
+                  {
+                    "required": [
+                      "gte"
+                    ]
+                  }
+                ],
+                "description": "field: compare one declared field with exactly one comparator (spec section 6.3)."
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "guard": {
+                    "const": "delivery.checks-passed"
+                  }
+                }
+              },
+              "then": {
+                "required": [
+                  "set"
+                ],
+                "properties": {
+                  "set": {
+                    "$ref": "#/$defs/identifier"
+                  }
+                },
+                "description": "delivery.checks-passed: the named check set must have evidence for the revision the transition moves (spec section 6.12)."
+              }
+            }
+          ]
         }
       ]
     },
@@ -1932,9 +2090,44 @@
           },
           "additionalProperties": {
             "$ref": "#/$defs/argument-value"
-          }
+          },
+          "allOf": [
+            {
+              "if": {
+                "properties": {
+                  "action": {
+                    "const": "delivery.integrate"
+                  }
+                }
+              },
+              "then": {
+                "properties": {
+                  "checks": {
+                    "$ref": "#/$defs/identifier",
+                    "description": "The check set that gates the integration (spec section 6.12)."
+                  }
+                }
+              }
+            }
+          ]
         }
       ]
+    },
+    "range": {
+      "type": "object",
+      "additionalProperties": false,
+      "minProperties": 1,
+      "properties": {
+        "min": {
+          "type": "number",
+          "minimum": 0
+        },
+        "max": {
+          "type": "number",
+          "minimum": 0
+        }
+      },
+      "description": "A numeric range with at least one bound (spec section 9)."
     }
   }
 }
