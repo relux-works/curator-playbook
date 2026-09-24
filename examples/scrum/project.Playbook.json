@@ -1,18 +1,27 @@
 {
   "$schema": "../../schema/playbook-v1.schema.json",
   "schema_version": 1,
-  "description": "A project running Scrum cadence over dev-cycle delivery: both playbooks are composed, the scrum work-item slot is bound to dev-cycle's story, and the scrum orchestrator is the root. Dev-cycle's own orchestrator still owns story-level states.",
+  "description": "A project running Scrum cadence over dev-cycle delivery. Both playbooks are admitted by uses; the work-item slot is bound to dev-cycle's story and the delivery slot to dev-cycle itself; the scrum orchestrator is the root and dev-cycle's orchestrator keeps story-level states. Only this file enables automatic spawns, binds people, sets effort floors and decides which human acts need signatures.",
   "uses": ["dev-cycle", "scrum"],
-  "bind": { "scrum.work-item": "story" },
+  "bind": { "scrum.work-item": "story", "scrum.delivery": "dev-cycle" },
   "root": "scrum-orchestrator",
+  "people": {
+    "operators": { "principals": ["op:*@acme"], "description": "Everyone who operates this project." },
+    "sponsors": { "principals": ["op:alice@acme"], "description": "Approves sprint reviews and goals." }
+  },
   "entities": {
     "story": {
-      "parents": ["epic", "sprint"],
       "estimates": [
         { "name": "complexity", "scale": "fibonacci" },
         { "name": "duration", "scale": "days" }
       ],
-      "description": "Difference only: stories may sit in a sprint and carry the two estimates the slot requires."
+      "description": "Difference only: stories carry the two estimates the work-item slot requires. They stay under their epic; sprints hold them by membership link."
     }
+  },
+  "policy": {
+    "goals": { "orchestrator_goal": { "scrum-orchestrator": "sprint", "dev-cycle.orchestrator": "story" } },
+    "effort_floor": { "dev-cycle.reviewer": "medium" },
+    "enable": { "auto_spawn": true },
+    "signatures": { "require_for": ["approvals", "relaxations", "halts"], "min_assurance": "hardware-bound" }
   }
 }

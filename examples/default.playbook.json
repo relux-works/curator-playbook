@@ -2,7 +2,7 @@
   "$schema": "../schema/playbook-v1.schema.json",
   "schema_version": 1,
   "name": "task-board-default",
-  "description": "Today's task-board behaviour (skill-project-management origin/main 4b0a75d6) written as a playbook. Reproducing it byte-identically, or with documented differences, is the PC1 acceptance target. Every element cites the code in spec section 14; open points are listed there.",
+  "description": "Today's task-board behaviour (skill-project-management origin/main 4b0a75d6) written as a playbook: the PC1 acceptance target. Spec section 14 maps every element to the code and lists each accepted difference. The kernel has no transition table today: any status may be set when its gates pass, which from * reproduces.",
   "root": "orchestrator",
   "roles": {
     "orchestrator": {
@@ -12,26 +12,14 @@
     },
     "developer": { "skill": "developer", "capability": "producer", "description": "Archetype implementer; start development, end to-review (.roles/developer/role.md)." },
     "tester": { "skill": "tester", "capability": "tester", "description": "Archetype tester; start development, end to-review (.roles/tester/role.md)." },
-    "doc-writer": { "skill": "doc-writer", "capability": "producer", "description": "Archetype implementer; start development, end to-review (.roles/doc-writer/role.md)." },
-    "researcher": { "skill": "researcher", "capability": "analyst", "description": "Archetype analyst; start analysis, end to-review (.roles/researcher/role.md)." },
+    "doc-writer": { "skill": "doc-writer", "capability": "producer", "description": "Archetype implementer; start development, end to-review." },
+    "researcher": { "skill": "researcher", "capability": "analyst", "description": "Archetype analyst; start analysis, end to-review." },
     "solution-architect": { "skill": "solution-architect", "capability": "analyst", "description": "Archetype analyst; start analysis, end to-review." },
     "context-builder": { "skill": "context-builder", "capability": "analyst", "description": "Archetype analyst; start analysis, end to-review." },
     "reviewer": {
       "skill": "reviewer",
       "capability": "reviewer",
       "description": "Archetype reviewer; start reviewing, verdict-driven end (goal_role.go:36-45; .roles/reviewer/role.md)."
-    },
-    "operator": {
-      "kind": "human",
-      "who": "operator",
-      "capability": "approver",
-      "description": "Owns linkless blocked items: external blockers and human-only decisions (pkg/board/blocked_release.go:8-24)."
-    },
-    "integration": {
-      "kind": "tool",
-      "tool": "task-board worktree integrate",
-      "capability": "checker",
-      "description": "The integration production path, the only public exit from integrating to done (pkg/board/consistency.go:169-172)."
     }
   },
   "entities": {
@@ -56,7 +44,7 @@
         "task_class": { "type": "enum", "values": ["code", "metadata", "docs", "research"], "default": "code", "description": "pkg/board/types.go:136-141." },
         "review": { "type": "enum", "values": ["required", "light", "none"], "default": "required", "description": "Review policy; empty normalizes to required (types.go:106-133)." }
       },
-      "estimates": [{ "name": "effort", "scale": "fibonacci", "description": "set_estimate(scale=fibonacci); new records must be estimated before development (pkg/board/validation.go:60-68)." }]
+      "estimates": [{ "name": "points", "scale": "fibonacci", "description": "set_estimate(scale=fibonacci); new records must be estimated before development (pkg/board/validation.go:60-68)." }]
     },
     "bug": {
       "parents": ["story"],
@@ -65,36 +53,36 @@
         "task_class": { "type": "enum", "values": ["code", "metadata", "docs", "research"], "default": "code" },
         "review": { "type": "enum", "values": ["required", "light", "none"], "default": "required" }
       },
-      "estimates": [{ "name": "effort", "scale": "fibonacci" }]
+      "estimates": [{ "name": "points", "scale": "fibonacci" }]
     }
   },
   "workflows": {
     "leaf": {
       "initial": "backlog",
-      "description": "Today's statuses (pkg/board/types.go:23-32). The kernel has no transition table: any non-terminal status may be set when its gates pass, which from * reproduces.",
+      "description": "Today's statuses (pkg/board/types.go:23-32).",
       "states": {
         "backlog": { "owner": "orchestrator" },
         "analysis": {
-          "owner": { "one_of": ["researcher", "solution-architect", "context-builder"], "by": "assignment.role" },
-          "description": "Start status of the analyst roles."
+          "owner": { "one_of": { "capability": ["analyst"] }, "by": "assignment.role" },
+          "description": "Start status of every analyst-archetype role, including project-defined ones (tools/board-cli/internal/spawn/role.go:303-335)."
         },
-        "to-dev": { "owner": "orchestrator", "description": "Queued, nobody owns it; deliberately needs no assignee (validation.go:73-83)." },
+        "to-dev": { "owner": "orchestrator", "description": "Queued; deliberately needs no assignee (validation.go:73-83)." },
         "development": {
-          "owner": { "one_of": ["developer", "tester", "doc-writer"], "by": "assignment.role" },
-          "description": "Start status of implementer and tester roles."
+          "owner": { "one_of": { "capability": ["producer", "tester"] }, "by": "assignment.role" },
+          "description": "Start status of implementer and tester roles, including project-defined and legacy names (role.go:83-93)."
         },
-        "to-review": { "owner": "orchestrator", "description": "Producer handoff reached; the orchestrator routes a reviewer." },
-        "reviewing": { "owner": "reviewer" },
+        "to-review": { "owner": "orchestrator", "description": "Handoff reached; the orchestrator routes a reviewer." },
+        "reviewing": { "owner": { "one_of": { "capability": ["reviewer"] }, "by": "assignment.role" } },
         "integrating": {
-          "owner": "integration",
+          "owner": "orchestrator",
           "locked": true,
-          "description": "Entered only through accept_cr; left only through integration evidence (consistency.go:166-172)."
+          "description": "Entered only through accept_cr (consistency.go:166-167). The orchestrator integrates the story; the leaf leaves through integration evidence, a restore, or a rollback to to-dev (consistency.go:169-172)."
         },
         "done": { "terminal": true },
         "closed": { "terminal": true, "description": "Today closed carries no resolution value." },
         "blocked": {
-          "owner": "operator",
-          "description": "Linked blocked items release to backlog when every blocker is terminal; linkless ones are stop-the-line and wait for the operator."
+          "owner": "orchestrator",
+          "description": "Linked blocked items release to backlog when every blocker is terminal (blocked_release.go:8-24, 76-87). Linkless ones are stop-the-line by convention; the kernel does not restrict who unblocks them today."
         }
       },
       "transitions": [
@@ -104,21 +92,26 @@
         {
           "from": "*",
           "to": "development",
-          "guards": ["blockers.clear", "estimate", { "guard": "assignee", "manual_only": true }],
-          "description": "validation.go:46-58 (blockers), 60-68 (estimate), 85-90 (assignee on manual moves)."
+          "guards": ["blockers.clear", { "guard": "estimate", "grandfather_legacy": true }, { "guard": "assignee", "manual_only": true }],
+          "description": "validation.go:46-58 (blockers), 60-68 (estimate; legacy records with no estimate and idempotent writes pass), 85-90 (assignee on manual moves)."
         },
         {
           "from": "*",
           "to": "to-review",
-          "guards": ["blockers.clear", { "guard": "assignee", "manual_only": true }, { "guard": "handoff.evidence", "runs": "producer" }],
-          "description": "Spawned producers must use handoff: checklist complete and <ID>_results.md present (tools/board-cli/cmd/producer_handoff_guard.go:24; pkg/board/handoff.go:122; errors.go:26-44)."
+          "guards": [
+            "blockers.clear",
+            { "guard": "assignee", "manual_only": true },
+            { "guard": "checklist.complete", "applies_to": { "actor": "run", "except_capability": ["reviewer"] } },
+            { "guard": "outcome.present", "applies_to": { "actor": "run", "except_capability": ["reviewer"] } }
+          ],
+          "description": "Every spawned run whose role ends in to-review, except reviewers, must hand off with its checklist complete and <ID>_results.md stored (tools/board-cli/cmd/producer_handoff_guard.go:71; pkg/board/handoff.go:122; errors.go:26-44)."
         },
         { "from": "*", "to": "reviewing", "guards": ["blockers.clear"] },
         {
           "from": "*",
           "to": "integrating",
           "via": "accept_cr",
-          "guards": ["blockers.clear", "review.accepted"],
+          "guards": ["blockers.clear", "delivery.cr-accepted"],
           "description": "Only an accepted immutable revision may enter integration (consistency.go:166-167)."
         },
         {
@@ -126,22 +119,26 @@
           "to": "to-dev",
           "via": "reject_cr",
           "actions": ["record.verdict"],
-          "description": "Rejection routes the element to to-dev (tools/board-cli/cmd/change_request.go:753, 825, 856)."
+          "description": "The rejection command routes to to-dev (tools/board-cli/cmd/change_request.go:753, 825, 856); a manual move to to-dev stays possible through * -> to-dev."
         },
         {
           "from": "integrating",
           "to": "done",
           "via": "integrate",
-          "guards": ["integration.evidence"],
-          "actions": ["close.checkpointed-siblings"],
-          "description": "IntegrationAuthorized path (consistency.go:169-172, 224-229)."
+          "guards": ["delivery.integration-evidence"],
+          "actions": ["delivery.close-checkpointed-siblings"],
+          "description": "IntegrationAuthorized (consistency.go:169-172)."
         },
-        { "from": "integrating", "to": "done", "via": "integrate_external", "guards": ["integration.external-evidence"] },
+        { "from": "integrating", "to": "done", "via": "integrate_external", "guards": ["delivery.external-integration-evidence"], "description": "ExternalIntegrationAuthorized." },
+        { "from": "integrating", "to": "done", "via": "restore_done", "guards": ["delivery.restore-authorized"], "description": "IntegrationRestoreAuthorized (internal/integration/restore_done.go:85, landed_apply.go:93)." },
+        { "from": "integrating", "to": "to-dev", "via": "landed_rework", "guards": ["delivery.rollback-authorized"], "description": "AcceptanceRollbackAuthorized (internal/integration/start_landed_rework.go:67)." },
+        { "from": "integrating", "to": "to-dev", "via": "invalidate", "guards": ["delivery.rollback-authorized"], "description": "AcceptanceRollbackAuthorized (internal/integration/invalidate.go:117-118)." },
+        { "from": "integrating", "to": "to-dev", "via": "converge", "guards": ["delivery.rollback-authorized"], "description": "AcceptanceRollbackAuthorized (internal/integration/converge.go:426-427)." },
         {
           "from": "*",
           "to": "done",
-          "guards": ["blockers.clear", "change_request.absent", "commit.acknowledged"],
-          "description": "Inline done route: refused when a Change Request exists (consistency.go:128-141, 158); commit acknowledgement when the version-control policy confirms (version_control.go:89-123)."
+          "guards": ["blockers.clear", "delivery.cr-absent", "delivery.commit-acknowledged"],
+          "description": "Inline done route: refused while a Change Request exists (consistency.go:128-141, 158); commit acknowledgement for the enforced types when the policy confirms (version_control.go:89-123)."
         },
         { "from": "*", "to": "closed", "description": "A leaf closes from any lifecycle state (validation.go:31-33)." },
         { "from": "*", "to": "blocked" },
@@ -155,7 +152,7 @@
     },
     "container": {
       "initial": "backlog",
-      "description": "Epics and stories: status aggregates from children (escalation.go:73, 140); only closing and integration set it directly.",
+      "description": "Epics and stories. Status aggregates from children (escalation.go:73, 140): aggregation reopens done and closed containers when a child becomes active (escalation.go:151-162, 198-200) and moves them into and out of integrating (escalation.go:65-68). Aggregated moves are not transitions (spec section 5.1). Direct statuses are admitted too; only the close is gated (validation.go:34-43), and blocked containers are left alone by aggregation (escalation.go:151).",
       "states": {
         "backlog": { "owner": "orchestrator" },
         "analysis": { "owner": "orchestrator" },
@@ -163,31 +160,40 @@
         "development": { "owner": "orchestrator" },
         "to-review": { "owner": "orchestrator" },
         "reviewing": { "owner": "orchestrator" },
-        "integrating": { "owner": "integration", "locked": true },
+        "integrating": { "owner": "orchestrator", "locked": true, "description": "Reached and left by aggregation only." },
         "done": { "terminal": true },
         "closed": { "terminal": true },
-        "blocked": { "owner": "operator" }
+        "blocked": { "owner": "orchestrator" }
       },
       "transitions": [
+        { "from": "*", "to": "backlog" },
+        { "from": "*", "to": "analysis" },
+        { "from": "*", "to": "to-dev" },
+        { "from": "*", "to": "development", "guards": ["blockers.clear"] },
+        { "from": "*", "to": "to-review", "guards": ["blockers.clear"] },
+        { "from": "*", "to": "reviewing", "guards": ["blockers.clear"] },
+        {
+          "from": "*",
+          "to": "done",
+          "guards": ["blockers.clear", "delivery.cr-absent", "delivery.commit-acknowledged"],
+          "description": "The done check applies to every element (consistency.go:158); story is a version-control enforced type (version_control.go:18-19, 277-279)."
+        },
         {
           "from": "*",
           "to": "closed",
           "guards": ["children.terminal"],
           "description": "A container closes only after every descendant is done or closed (validation.go:34-43)."
         },
-        {
-          "from": "integrating",
-          "to": "done",
-          "via": "integrate",
-          "guards": ["integration.evidence", "commit.acknowledged"],
-          "description": "Story integration; story and bug are the version-control enforced types (version_control.go:277-279)."
-        }
+        { "from": "*", "to": "blocked" },
+        { "from": "blocked", "to": "backlog", "on": { "event": "blockers.terminal" }, "description": "blocked_release.go:76-87 applies to any blocked element with links." }
       ]
     }
   },
   "policy": {
     "review": { "default": "required" },
-    "version_control": { "confirm": false, "enforced_types": ["story", "bug"] },
-    "loop_detection": { "threshold": 3 }
+    "delivery": {
+      "version_control": { "confirm": false },
+      "loop_detection": { "floor": 3, "factor": 2 }
+    }
   }
 }

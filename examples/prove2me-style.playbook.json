@@ -2,13 +2,20 @@
   "$schema": "../schema/playbook-v1.schema.json",
   "schema_version": 1,
   "name": "formal-missions",
-  "description": "Expressibility check modelled on prove2.me: a mission is split into milestone lemmas; each attempt is accepted only when a tool, the Lean kernel, checks it. The strongest guard is a machine checker owning a state.",
+  "description": "Expressibility check modelled on prove2.me: a mission is split into milestone lemmas; each attempt is accepted only when a tool, the Lean kernel, checks it. The strongest guard is a machine checker owning a state. The checker is a command exported by a skill of this package, never a program string.",
   "root": "orchestrator",
   "roles": {
     "orchestrator": { "skill": "proof-orchestrator", "capability": "orchestrator" },
     "captain": { "kind": "human", "who": "mission-captains", "capability": "approver" },
-    "prover": { "skill": "proof-prover", "capability": "producer", "needs": { "prefer": { "effort": "max" } } },
-    "lean": { "kind": "tool", "tool": "lean-kernel-check", "capability": "checker" }
+    "prover": { "skill": "proof-prover", "capability": "producer" },
+    "lean": { "kind": "tool", "tool": "lean.check", "capability": "checker" }
+  },
+  "tools": {
+    "lean.check": {
+      "skill": "proof-lean-kernel",
+      "command": "check",
+      "description": "The package's own skill wraps the Lean toolchain; Curator audits and locks it like any skill."
+    }
   },
   "entities": {
     "mission": {
@@ -51,11 +58,16 @@
       "initial": "open",
       "states": {
         "open": { "owner": "orchestrator" },
-        "proven": { "terminal": true },
-        "stalled": { "owner": "captain" }
+        "stalled": { "owner": "captain" },
+        "proven": { "terminal": true }
       },
       "transitions": [
-        { "from": "open", "to": "proven", "on": { "event": "child.accepted" } },
+        {
+          "from": "open",
+          "to": "proven",
+          "on": { "event": "children.changed" },
+          "guards": [{ "guard": "children.any-in", "states": ["accepted"] }]
+        },
         { "from": "open", "to": "stalled", "on": { "after": "P14D" } },
         { "from": "stalled", "to": "open" }
       ]
@@ -71,7 +83,12 @@
       "transitions": [
         { "from": "proving", "to": "checking", "guards": [{ "guard": "fields.present", "fields": ["proof"] }] },
         { "from": "checking", "to": "accepted", "on": { "event": "tool.passed" } },
-        { "from": "checking", "to": "proving", "on": { "event": "tool.failed" }, "limit": { "max": 5, "then": "rejected" } }
+        {
+          "from": "checking",
+          "to": "proving",
+          "on": { "event": "tool.failed" },
+          "limit": { "max": 5, "then": "rejected", "resolution": "gave-up" }
+        }
       ]
     }
   }

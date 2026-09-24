@@ -1,10 +1,11 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/relux-works/curator-playbook/schema/playbook-v1.schema.json",
-  "title": "Playbook.json (draft, schema_version 1)",
-  "description": "Process configuration for agent systems. DRAFT, not normative; see spec/process-configuration.md. Keys starting with x- are reserved for extensions and ignored by the kernel.",
+  "title": "Playbook.json (draft v2, schema_version 1)",
+  "description": "Process configuration for agent systems. DRAFT v2, not normative; see spec/process-configuration.md. A playbook is data only: it never names a program, script, webhook or URL (spec section 8.5). Keys starting with x- are reserved for extensions and ignored by the kernel.",
   "type": "object",
   "required": [
+    "$schema",
     "schema_version"
   ],
   "additionalProperties": false,
@@ -26,8 +27,28 @@
       "type": "string"
     },
     "extends": {
-      "$ref": "#/$defs/identifier",
-      "description": "Single parent playbook, resolved from installed skills. The file then carries only differences (spec section 7.1)."
+      "description": "Single parent playbook (spec section 7.1). The object form pins the parent package identity (repository and tag), which the resolver checks against the installed lock.",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/identifier"
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "name"
+          ],
+          "properties": {
+            "name": {
+              "$ref": "#/$defs/identifier"
+            },
+            "package": {
+              "type": "string",
+              "description": "Package identity, for example relux-works/curator-playbook-dev-cycle@v1.0.0."
+            }
+          }
+        }
+      ]
     },
     "uses": {
       "type": "array",
@@ -49,13 +70,13 @@
     },
     "bind": {
       "type": "object",
-      "description": "Slot bindings in a composing project: key is <playbook>.<slot> (or <slot> when unambiguous), value is a concrete entity type.",
+      "description": "Bindings in a composing project: key is <playbook>.<slot> (or <slot> when unambiguous); value is a concrete entity type, or for a process slot a playbook name of the composition (spec sections 6.5, 7.2).",
       "propertyNames": {
         "type": "string",
         "pattern": "^([a-z][a-z0-9-]*\\.)?[a-z][a-z0-9-]*$"
       },
       "additionalProperties": {
-        "$ref": "#/$defs/identifier"
+        "$ref": "#/$defs/qualified"
       }
     },
     "root": {
@@ -69,6 +90,36 @@
       },
       "additionalProperties": {
         "$ref": "#/$defs/role"
+      }
+    },
+    "tools": {
+      "type": "object",
+      "description": "Tool names bound to commands exported by installed skills (spec section 8.5). A published template may bind only to skills of its own package; every other binding comes from the project file.",
+      "propertyNames": {
+        "$ref": "#/$defs/hook-name"
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/tool-binding"
+      }
+    },
+    "people": {
+      "type": "object",
+      "description": "Human groups named by human roles (who), mapped to waggle roster principals (spec section 4.2). Defined by the project file.",
+      "propertyNames": {
+        "$ref": "#/$defs/identifier"
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/people-group"
+      }
+    },
+    "events": {
+      "type": "object",
+      "description": "External events this playbook reacts to, with the principals allowed to sign them (spec section 6.9).",
+      "propertyNames": {
+        "$ref": "#/$defs/hook-name"
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/event-declaration"
       }
     },
     "entities": {
@@ -140,6 +191,14 @@
         "^x-": {}
       },
       "properties": {
+        "kind": {
+          "enum": [
+            "type",
+            "process"
+          ],
+          "default": "type",
+          "description": "type: an entity type the project binds; process: a receiving process the project binds to a playbook of the composition or another board."
+        },
         "description": {
           "type": "string"
         },
@@ -179,7 +238,7 @@
       "patternProperties": {
         "^x-": {}
       },
-      "description": "A requirement or preference stated in portable terms; never a concrete model id.",
+      "description": "A requirement or preference stated in portable terms; never a concrete model id, runtime or effort (effort lives in the operator file; a project may set a floor in policy.effort_floor).",
       "properties": {
         "publisher": {
           "$ref": "#/$defs/string-or-list"
@@ -193,16 +252,6 @@
             "type": "string"
           },
           "uniqueItems": true
-        },
-        "effort": {
-          "enum": [
-            "low",
-            "medium",
-            "high",
-            "xhigh",
-            "max",
-            "ultra"
-          ]
         },
         "local": {
           "type": "boolean"
@@ -258,17 +307,37 @@
           "additionalProperties": false,
           "properties": {
             "scope": {
-              "enum": [
-                "element",
-                "story",
-                "epic",
-                "project"
+              "oneOf": [
+                {
+                  "enum": [
+                    "element",
+                    "project"
+                  ]
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "ancestor"
+                  ],
+                  "properties": {
+                    "ancestor": {
+                      "$ref": "#/$defs/qualified"
+                    }
+                  },
+                  "description": "The nearest ancestor of this type."
+                }
               ]
             },
             "expires": {
               "$ref": "#/$defs/duration"
             }
-          }
+          },
+          "description": "Proposed defaults for an ask approval; the approval binds to the approving principal and that principal's own runs (spec section 9)."
+        },
+        "degraded_state": {
+          "$ref": "#/$defs/identifier",
+          "description": "degrade: the statically declared review state the degraded path goes through (spec section 9)."
         }
       }
     },
@@ -284,7 +353,7 @@
             "agent",
             "human",
             "tool",
-            "comb"
+            "process"
           ],
           "default": "agent"
         },
@@ -293,16 +362,16 @@
           "description": "agent: the role skill, by installed skill name."
         },
         "who": {
-          "type": "string",
-          "description": "human: a person or group, resolved by the operator or project directory."
+          "$ref": "#/$defs/identifier",
+          "description": "human: a group of the project people map."
         },
         "tool": {
-          "type": "string",
-          "description": "tool: a program, module hook or webhook identity."
+          "$ref": "#/$defs/hook-name",
+          "description": "tool: a tool name bound in the tools map to a command exported by an installed skill."
         },
         "process": {
-          "$ref": "#/$defs/identifier",
-          "description": "comb: the receiving process (another playbook instance)."
+          "$ref": "#/$defs/qualified",
+          "description": "process: the receiving process, a playbook of the composition or a process slot the project binds."
         },
         "capability": {
           "anyOf": [
@@ -400,7 +469,7 @@
           "if": {
             "properties": {
               "kind": {
-                "const": "comb"
+                "const": "process"
               }
             },
             "required": [
@@ -456,6 +525,123 @@
             "required": [
               "skill"
             ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "human"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "properties": {
+              "capability": {
+                "anyOf": [
+                  {
+                    "const": "approver"
+                  },
+                  {
+                    "type": "string",
+                    "pattern": "^x-[a-z0-9-]+$"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "tool"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "properties": {
+              "capability": {
+                "anyOf": [
+                  {
+                    "const": "checker"
+                  },
+                  {
+                    "type": "string",
+                    "pattern": "^x-[a-z0-9-]+$"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "process"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "not": {
+              "required": [
+                "capability"
+              ]
+            }
+          }
+        },
+        {
+          "if": {
+            "anyOf": [
+              {
+                "not": {
+                  "required": [
+                    "kind"
+                  ]
+                }
+              },
+              {
+                "properties": {
+                  "kind": {
+                    "const": "agent"
+                  }
+                },
+                "required": [
+                  "kind"
+                ]
+              }
+            ]
+          },
+          "then": {
+            "properties": {
+              "capability": {
+                "anyOf": [
+                  {
+                    "enum": [
+                      "orchestrator",
+                      "producer",
+                      "reviewer",
+                      "analyst",
+                      "tester"
+                    ]
+                  },
+                  {
+                    "type": "string",
+                    "pattern": "^x-[a-z0-9-]+$"
+                  }
+                ]
+              }
+            }
           }
         }
       ]
@@ -614,7 +800,7 @@
         },
         "derived_status": {
           "type": "boolean",
-          "description": "Status aggregates from children except where a declared transition sets it."
+          "description": "Status aggregates from children by the kernel; aggregated moves are not transitions (spec section 5.1)."
         },
         "fields": {
           "type": "object",
@@ -644,6 +830,26 @@
         },
         "ui": {
           "$ref": "#/$defs/ui"
+        },
+        "members": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ],
+          "properties": {
+            "type": {
+              "$ref": "#/$defs/qualified"
+            },
+            "max_per_item": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "description": {
+              "type": "string"
+            }
+          },
+          "description": "Membership by link, not containment: the hierarchy stays a tree (spec section 7.2)."
         }
       }
     },
@@ -661,19 +867,41 @@
           ],
           "properties": {
             "one_of": {
-              "type": "array",
-              "items": {
-                "$ref": "#/$defs/qualified"
-              },
-              "minItems": 2,
-              "uniqueItems": true
+              "oneOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/qualified"
+                  },
+                  "minItems": 2,
+                  "uniqueItems": true
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "capability"
+                  ],
+                  "properties": {
+                    "capability": {
+                      "type": "array",
+                      "minItems": 1,
+                      "uniqueItems": true,
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "description": "Any installed agent role with one of these capabilities (today's open-ended roles)."
+                }
+              ]
             },
             "by": {
-              "type": "string",
-              "description": "What picks the one owner per element, for example assignment.role."
+              "const": "assignment.role",
+              "description": "The structured role alias recorded by assignment or spawn."
             }
           },
-          "description": "Exactly one owner per element, chosen per element from a fixed set."
+          "description": "Each element has exactly one owner in each state; the state admits several roles and assignment picks one. Until assignment the root orchestrator owns the element (spec section 6.1)."
         }
       ]
     },
@@ -708,38 +936,6 @@
         }
       ]
     },
-    "hook": {
-      "description": "A guard or action reference: a name, or an object whose first key names the hook and whose other keys are its arguments.",
-      "oneOf": [
-        {
-          "$ref": "#/$defs/hook-name"
-        },
-        {
-          "type": "object",
-          "minProperties": 1,
-          "properties": {
-            "guard": {
-              "$ref": "#/$defs/hook-name"
-            },
-            "action": {
-              "$ref": "#/$defs/hook-name"
-            }
-          },
-          "oneOf": [
-            {
-              "required": [
-                "guard"
-              ]
-            },
-            {
-              "required": [
-                "action"
-              ]
-            }
-          ]
-        }
-      ]
-    },
     "state": {
       "type": "object",
       "additionalProperties": false,
@@ -759,9 +955,9 @@
         "requires": {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/hook"
+            "$ref": "#/$defs/guard-hook"
           },
-          "description": "Entry conditions: guards applied to every transition into this state."
+          "description": "Entry conditions: guards applied to every transition into this state, and to creation when the state is initial."
         },
         "terminal": {
           "type": "boolean"
@@ -819,7 +1015,8 @@
       "additionalProperties": false,
       "properties": {
         "event": {
-          "$ref": "#/$defs/hook-name"
+          "$ref": "#/$defs/hook-name",
+          "description": "A kernel, module, tool or declared external event (spec sections 6.3, 6.9)."
         },
         "after": {
           "$ref": "#/$defs/duration"
@@ -872,18 +1069,18 @@
         },
         "via": {
           "$ref": "#/$defs/hook-name",
-          "description": "The one command that performs this transition, for example accept_cr."
+          "description": "The one command that performs this from-to pair, for example accept_cr; it does not restrict other pairs into the same state."
         },
         "guards": {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/hook"
+            "$ref": "#/$defs/guard-hook"
           }
         },
         "actions": {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/hook"
+            "$ref": "#/$defs/action-hook"
           }
         },
         "on": {
@@ -903,6 +1100,10 @@
             },
             "then": {
               "$ref": "#/$defs/identifier"
+            },
+            "resolution": {
+              "$ref": "#/$defs/identifier",
+              "description": "Resolution recorded when the redirect enters a resolution state."
             }
           },
           "description": "Loop limit: after max firings for one element, the transition leads to then instead."
@@ -920,6 +1121,10 @@
         },
         "ui": {
           "$ref": "#/$defs/ui"
+        },
+        "resolution": {
+          "$ref": "#/$defs/identifier",
+          "description": "Resolution this transition records on entry; required for automatic transitions into a resolution state."
         }
       }
     },
@@ -931,7 +1136,8 @@
       },
       "properties": {
         "initial": {
-          "$ref": "#/$defs/identifier"
+          "$ref": "#/$defs/identifier",
+          "description": "The state an element enters on creation; creation is subject to its requires."
         },
         "states": {
           "type": "object",
@@ -953,6 +1159,16 @@
         },
         "ui": {
           "$ref": "#/$defs/ui"
+        },
+        "migrations": {
+          "type": "object",
+          "propertyNames": {
+            "$ref": "#/$defs/identifier"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/identifier"
+          },
+          "description": "Old state name to new state name, applied to existing elements when a template update removes or renames a state (spec section 7.1)."
         }
       }
     },
@@ -960,9 +1176,13 @@
       "type": "object",
       "additionalProperties": false,
       "required": [
+        "name",
         "create"
       ],
       "properties": {
+        "name": {
+          "$ref": "#/$defs/identifier"
+        },
         "every": {
           "$ref": "#/$defs/duration"
         },
@@ -1071,43 +1291,290 @@
             }
           }
         },
-        "version_control": {
-          "type": "object",
-          "additionalProperties": false,
-          "properties": {
-            "confirm": {
-              "type": "boolean"
-            },
-            "enforced_types": {
-              "type": "array",
-              "items": {
-                "$ref": "#/$defs/identifier"
-              },
-              "uniqueItems": true
-            }
-          }
-        },
-        "loop_detection": {
-          "type": "object",
-          "additionalProperties": false,
-          "properties": {
-            "threshold": {
-              "type": "integer",
-              "minimum": 1
-            }
-          }
-        },
         "goals": {
           "type": "object",
           "additionalProperties": false,
           "properties": {
             "orchestrator_goal": {
-              "$ref": "#/$defs/qualified",
-              "description": "The entity type whose current instance is the orchestrator's goal (short goals: a milestone or a sprint)."
+              "oneOf": [
+                {
+                  "$ref": "#/$defs/qualified"
+                },
+                {
+                  "type": "object",
+                  "propertyNames": {
+                    "$ref": "#/$defs/qualified"
+                  },
+                  "additionalProperties": {
+                    "$ref": "#/$defs/qualified"
+                  },
+                  "description": "Per orchestrator role: the entity type whose current instance is its goal."
+                }
+              ]
+            }
+          }
+        },
+        "effort_floor": {
+          "type": "object",
+          "propertyNames": {
+            "$ref": "#/$defs/qualified"
+          },
+          "additionalProperties": {
+            "enum": [
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ]
+          },
+          "description": "Project only: the lowest reasoning effort a role may run at; the operator file chooses within it."
+        },
+        "enable": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "schedules": {
+              "oneOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/qualified"
+                  },
+                  "uniqueItems": true
+                }
+              ]
+            },
+            "auto_spawn": {
+              "type": "boolean"
+            },
+            "relaxations": {
+              "type": "boolean",
+              "description": "Accept the fallback and degrade policies the admitted playbooks propose."
+            }
+          },
+          "description": "Project only: side effects a package may propose but only the project turns on (spec section 8.5)."
+        },
+        "signatures": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "require_for": {
+              "type": "array",
+              "uniqueItems": true,
+              "items": {
+                "anyOf": [
+                  {
+                    "enum": [
+                      "approvals",
+                      "spending",
+                      "halts",
+                      "relaxations",
+                      "human-transitions"
+                    ]
+                  },
+                  {
+                    "type": "string",
+                    "pattern": "^x-[a-z0-9-]+$"
+                  }
+                ]
+              }
+            },
+            "min_assurance": {
+              "enum": [
+                "software",
+                "hardware-bound",
+                "attested"
+              ]
+            }
+          },
+          "description": "Which human acts need a waggle approver signature, and at what key assurance (spec section 4.2)."
+        },
+        "delivery": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "version_control": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "confirm": {
+                  "type": "boolean"
+                },
+                "desired_commit_time": {
+                  "type": "string"
+                },
+                "commit_time_policy": {
+                  "type": "string"
+                }
+              },
+              "if": {
+                "properties": {
+                  "confirm": {
+                    "const": true
+                  }
+                },
+                "required": [
+                  "confirm"
+                ]
+              },
+              "then": {
+                "required": [
+                  "desired_commit_time"
+                ]
+              }
+            },
+            "loop_detection": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "floor": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "factor": {
+                  "type": "number",
+                  "exclusiveMinimum": 0
+                }
+              },
+              "description": "Threshold = max(floor, factor x median rework)."
+            }
+          },
+          "description": "Delivery-module policy (development only; spec section 6.10)."
+        }
+      }
+    },
+    "tool-binding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "skill",
+        "command"
+      ],
+      "properties": {
+        "skill": {
+          "$ref": "#/$defs/identifier",
+          "description": "Installed skill that exports the command (audited through Curator)."
+        },
+        "command": {
+          "$ref": "#/$defs/identifier",
+          "description": "A command the skill manifest exports; never a free-form program string."
+        },
+        "description": {
+          "type": "string"
+        }
+      }
+    },
+    "people-group": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "principals"
+      ],
+      "properties": {
+        "principals": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]*:[^\\s@]+@[^\\s@]+$"
+          },
+          "description": "waggle roster principals or principal patterns, for example op:alice@acme or op:*@acme."
+        },
+        "description": {
+          "type": "string"
+        }
+      }
+    },
+    "event-declaration": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "signers": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string"
+          },
+          "description": "Principals (or tool keys) whose signature makes a posted event valid."
+        },
+        "description": {
+          "type": "string"
+        }
+      }
+    },
+    "guard-hook": {
+      "description": "A guard reference: a name, or an object whose guard key names it and whose other keys are its arguments (spec section 6.3).",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/hook-name"
+        },
+        {
+          "type": "object",
+          "required": [
+            "guard"
+          ],
+          "not": {
+            "required": [
+              "action"
+            ]
+          },
+          "properties": {
+            "guard": {
+              "$ref": "#/$defs/hook-name"
+            },
+            "applies_to": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "actor": {
+                  "enum": [
+                    "run",
+                    "human",
+                    "any"
+                  ]
+                },
+                "except_capability": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "uniqueItems": true
+                }
+              },
+              "description": "Limit the guard to one actor class (spec section 4.2)."
             }
           }
         }
-      }
+      ]
+    },
+    "action-hook": {
+      "description": "An action reference: a name, or an object whose action key names it and whose other keys are its arguments (spec section 6.3).",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/hook-name"
+        },
+        {
+          "type": "object",
+          "required": [
+            "action"
+          ],
+          "not": {
+            "required": [
+              "guard"
+            ]
+          },
+          "properties": {
+            "action": {
+              "$ref": "#/$defs/hook-name"
+            }
+          }
+        }
+      ]
     }
   }
 }

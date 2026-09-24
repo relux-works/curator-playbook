@@ -2,9 +2,13 @@
   "$schema": "../schema/playbook-v1.schema.json",
   "schema_version": 1,
   "name": "bug-hunt",
-  "description": "Audit an existing system and prove defects; every proven finding is handed off to the process that fixes it. The receiving element type is a slot the project binds, for example to dev-cycle's dev-task.",
+  "description": "Audit an existing system and prove defects; every proven finding is offered to the process that fixes it. The receiving process and its element type are slots the project binds, for example to dev-cycle and its dev-task.",
   "root": "orchestrator",
   "slots": {
+    "fix-process": {
+      "kind": "process",
+      "description": "The process that receives proven findings; its orchestrator accepts the offer and places the new element."
+    },
     "fix-target": {
       "description": "The element type in the receiving process that carries the fix.",
       "requires": { "terminal": ["done", "closed"] }
@@ -12,20 +16,21 @@
   },
   "roles": {
     "orchestrator": { "skill": "hunt-orchestrator", "capability": "orchestrator" },
-    "hunter": {
-      "skill": "hunt-hunter",
-      "capability": "producer",
-      "needs": { "prefer": { "effort": "max" } }
-    },
+    "hunter": { "skill": "hunt-hunter", "capability": "producer" },
     "verifier": {
       "skill": "hunt-verifier",
       "capability": "reviewer",
-      "needs": { "require": { "not_same_publisher_as": "hunter" }, "on_unmet": "degrade" }
+      "needs": {
+        "require": { "not_same_publisher_as": "hunter" },
+        "on_unmet": "ask",
+        "approval": { "scope": { "ancestor": "hunt" }, "expires": "P7D" }
+      },
+      "description": "Independence cannot be restored by more reviews from the same publisher, so an unmet requirement asks a person (degrade is refused for independence, spec section 9)."
     },
     "fixers": {
-      "kind": "comb",
-      "process": "dev",
-      "description": "The process that receives proven findings; the project names it."
+      "kind": "process",
+      "process": "fix-process",
+      "description": "The receiving process, bound by the project."
     }
   },
   "entities": {
@@ -44,7 +49,7 @@
         "severity": { "type": "enum", "values": ["low", "medium", "high", "critical"], "required": true },
         "location": { "type": "string" },
         "reproduction": { "type": "text" },
-        "fix": { "type": "ref", "ref": "fix-target", "description": "Set by the hand-off action." }
+        "fix": { "type": "ref", "ref": "fix-target", "description": "Set when the receiving orchestrator accepts the hand-off." }
       }
     }
   },
@@ -71,20 +76,42 @@
         "verifying": { "owner": "verifier" },
         "fixing": { "owner": "fixers", "description": "Worked in the receiving process; comes back when the fix element is terminal." },
         "fixed": { "terminal": true },
-        "rejected": { "terminal": true, "resolution": ["not-reproducible", "duplicate", "by-design"] }
+        "rejected": { "terminal": true, "resolution": ["not-reproducible", "duplicate", "by-design", "wont-fix"] }
       },
       "transitions": [
         { "from": "reported", "to": "reproducing", "actions": ["spawn.owner"] },
-        { "from": "reproducing", "to": "verifying", "guards": ["outcome.present", { "guard": "fields.present", "fields": ["reproduction"] }] },
-        { "from": "verifying", "to": "reproducing", "guards": [{ "guard": "verdict", "is": "changes-requested" }], "limit": { "max": 2, "then": "rejected" } },
+        {
+          "from": "reproducing",
+          "to": "verifying",
+          "guards": ["outcome.present", { "guard": "fields.present", "fields": ["reproduction"] }],
+          "actions": ["spawn.owner"]
+        },
+        {
+          "from": "verifying",
+          "to": "reproducing",
+          "guards": [{ "guard": "verdict", "is": "changes-requested" }],
+          "limit": { "max": 2, "then": "rejected", "resolution": "not-reproducible" }
+        },
         { "from": "verifying", "to": "rejected", "guards": [{ "guard": "verdict", "is": "rejected" }] },
         {
           "from": "verifying",
           "to": "fixing",
-          "guards": ["review.accepted"],
+          "guards": [{ "guard": "verdict", "is": "accepted" }],
           "actions": [{ "action": "handoff", "to": "fixers", "create": "fix-target", "link_field": "fix" }]
         },
-        { "from": "fixing", "to": "fixed", "on": { "event": "handoff.terminal" } }
+        {
+          "from": "fixing",
+          "to": "fixed",
+          "on": { "event": "process.returned" },
+          "guards": [{ "guard": "process.result", "in": ["done"] }]
+        },
+        {
+          "from": "fixing",
+          "to": "rejected",
+          "on": { "event": "process.returned" },
+          "guards": [{ "guard": "process.result", "in": ["closed"] }],
+          "resolution": "wont-fix"
+        }
       ]
     }
   }

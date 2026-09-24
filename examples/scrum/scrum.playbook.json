@@ -2,20 +2,25 @@
   "$schema": "../../schema/playbook-v1.schema.json",
   "schema_version": 1,
   "name": "scrum",
-  "description": "A cadence layer: it decides which work is selected and when, not how an item is built. The work item is a slot, bound by the project to a type from a delivery playbook such as dev-cycle's story.",
+  "description": "A cadence layer: it decides which work is selected and when, not how an item is built. Work items stay in their delivery hierarchy; a sprint holds them by membership link, so the hierarchy remains a tree. The work item and the delivery process are slots the project binds, for example to dev-cycle's story and to dev-cycle itself.",
   "root": "scrum-orchestrator",
   "slots": {
     "work-item": {
       "description": "Backlog item planned into sprints.",
       "requires": { "estimates": ["complexity", "duration"], "terminal": ["done", "closed"] }
+    },
+    "delivery": {
+      "kind": "process",
+      "description": "The delivery process that receives improvement items from retrospectives and places them in its own hierarchy."
     }
   },
   "roles": {
     "scrum-orchestrator": { "skill": "scrum-orchestrator", "capability": "orchestrator" },
-    "product-owner": { "skill": "scrum-product-owner", "capability": "analyst", "description": "Ranks the backlog against the goal." },
+    "product-owner": { "skill": "scrum-product-owner", "capability": "analyst", "description": "Ranks the backlog against the goal and links the selected items to the sprint." },
     "facilitator": { "skill": "scrum-facilitator", "capability": "analyst" },
     "estimator": { "skill": "scrum-estimator", "capability": "analyst" },
-    "sponsor": { "kind": "human", "who": "product-sponsor", "capability": "approver" }
+    "sponsor": { "kind": "human", "who": "sponsors", "capability": "approver" },
+    "delivery-process": { "kind": "process", "process": "delivery" }
   },
   "entities": {
     "goal": {
@@ -27,7 +32,8 @@
     "milestone": { "parents": ["goal"], "contains": ["sprint"], "workflow": "milestone" },
     "sprint": {
       "parents": ["milestone"],
-      "contains": ["work-item", "grooming", "planning", "retro"],
+      "contains": ["grooming", "planning", "retro"],
+      "members": { "type": "work-item", "max_per_item": 1, "description": "An item belongs to at most one open sprint; carrying it over relinks it." },
       "workflow": "sprint",
       "fields": { "velocity": { "type": "number", "description": "Complexity points accepted, written by the retro." } }
     },
@@ -79,7 +85,7 @@
           "to": "active",
           "guards": [{ "guard": "children.terminal", "types": ["grooming", "planning"] }, { "guard": "capacity", "dimension": "complexity" }]
         },
-        { "from": "active", "to": "review", "guards": [{ "guard": "children.terminal-or-carried", "types": ["work-item"] }] },
+        { "from": "active", "to": "review", "guards": ["members.terminal-or-carried"] },
         { "from": "review", "to": "retrospective" },
         { "from": "retrospective", "to": "closed", "guards": [{ "guard": "children.terminal", "types": ["retro"] }] }
       ]
@@ -97,19 +103,23 @@
       },
       "transitions": [
         { "from": "open", "to": "estimating", "actions": ["spawn.owner"] },
-        { "from": "estimating", "to": "done", "guards": [{ "guard": "estimates.present", "types": ["work-item"], "dimensions": ["complexity", "duration"] }] }
+        {
+          "from": "estimating",
+          "to": "done",
+          "guards": [{ "guard": "estimates.present", "scope": "parent-members", "dimensions": ["complexity", "duration"] }]
+        }
       ]
     },
     "planning": {
       "initial": "open",
       "states": {
         "open": { "owner": "scrum-orchestrator" },
-        "selecting": { "owner": "product-owner", "description": "Rank by value, then by the complexity-duration matrix; fill the sprint up to capacity." },
+        "selecting": { "owner": "product-owner", "description": "Rank by value, then by the complexity-duration matrix; link items to the sprint up to capacity." },
         "committed": { "terminal": true }
       },
       "transitions": [
         { "from": "open", "to": "selecting", "actions": ["spawn.owner"] },
-        { "from": "selecting", "to": "committed", "guards": [{ "guard": "capacity", "dimension": "complexity" }] }
+        { "from": "selecting", "to": "committed", "guards": [{ "guard": "capacity", "dimension": "complexity", "scope": "parent" }] }
       ]
     },
     "retro": {
@@ -121,7 +131,11 @@
       },
       "transitions": [
         { "from": "open", "to": "analysing", "actions": [{ "action": "compute.velocity", "dimension": "complexity" }] },
-        { "from": "analysing", "to": "done", "actions": [{ "action": "create", "type": "work-item", "from_outcome": "improvements" }] }
+        {
+          "from": "analysing",
+          "to": "done",
+          "actions": [{ "action": "handoff", "to": "delivery-process", "create": "work-item", "from_outcome": "improvements" }]
+        }
       ]
     }
   },

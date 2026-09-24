@@ -2,23 +2,23 @@
   "$schema": "../schema/playbook-v1.schema.json",
   "schema_version": 1,
   "name": "dev-cycle",
-  "description": "Software delivery with a producer-reviewer loop, a refuter on specifications and decisions as board memory. Template of the curator-playbook-dev-cycle package (skills/orchestrator/data/playbook.json).",
+  "description": "Software delivery with a producer-reviewer loop, a refuter on specifications and decisions as board memory. Accepted leaves wait in accepted until their story integrates, so the delivery invariants hold (spec section 6.10). Template of the curator-playbook-dev-cycle package (skills/orchestrator/data/playbook.json).",
   "root": "orchestrator",
   "roles": {
     "orchestrator": { "skill": "dev-orchestrator", "capability": "orchestrator" },
     "developer": {
       "skill": "dev-developer",
       "capability": "producer",
-      "needs": { "prefer": { "publisher": "openai", "effort": "max" } }
+      "needs": { "prefer": { "publisher": "openai" } }
     },
     "reviewer": {
       "skill": "dev-reviewer",
       "capability": "reviewer",
       "needs": {
-        "prefer": { "publisher": "anthropic", "effort": "medium" },
+        "prefer": { "publisher": "anthropic" },
         "require": { "not_same_publisher_as": "developer" },
         "on_unmet": "ask",
-        "approval": { "scope": "epic", "expires": "P30D" }
+        "approval": { "scope": { "ancestor": "epic" }, "expires": "P30D" }
       }
     },
     "refuter": {
@@ -28,8 +28,7 @@
     },
     "researcher": { "skill": "dev-researcher", "capability": "analyst" },
     "designer": { "skill": "dev-designer", "capability": "producer" },
-    "operator": { "kind": "human", "who": "operator", "capability": "approver" },
-    "ci": { "kind": "tool", "tool": "delivery.validate", "capability": "checker" }
+    "operator": { "kind": "human", "who": "operators", "capability": "approver", "description": "The project's people map binds the operators group to roster principals." }
   },
   "entities": {
     "epic": {
@@ -59,7 +58,7 @@
       "parents": ["epic"],
       "workflow": "decision",
       "fields": {
-        "statement": { "type": "text", "required": true },
+        "statement": { "type": "text", "required": true, "description": "Set before the decision leaves proposed." },
         "scope": { "type": "string", "description": "What the decision governs, for example a module, a file or the whole project." },
         "links": { "type": "list", "of": "string", "description": "Specifications, elements and commits it concerns." }
       },
@@ -73,6 +72,7 @@
         "open": { "owner": "orchestrator", "requires": ["description"] },
         "hld": { "owner": "designer", "description": "High-level design." },
         "challenge": { "owner": "refuter" },
+        "decision-needed": { "owner": "operator", "description": "Only a person can choose; the choice is recorded as a decision." },
         "in-progress": { "owner": "orchestrator" },
         "verification": { "owner": "reviewer" },
         "done": { "terminal": true },
@@ -82,11 +82,13 @@
         { "from": "open", "to": "hld" },
         { "from": "hld", "to": "challenge", "guards": ["outcome.present"] },
         { "from": "challenge", "to": "hld", "guards": [{ "guard": "verdict", "is": "contradiction" }] },
+        { "from": "challenge", "to": "decision-needed", "guards": [{ "guard": "verdict", "is": "human-decision-needed" }] },
         { "from": "challenge", "to": "in-progress", "guards": [{ "guard": "verdict", "is": "no-contradiction" }] },
+        { "from": "decision-needed", "to": "hld", "actions": [{ "action": "create", "type": "decision" }] },
         { "from": "in-progress", "to": "verification", "guards": ["children.terminal"] },
-        { "from": "verification", "to": "done", "guards": ["review.accepted"] },
-        { "from": "verification", "to": "in-progress" },
-        { "from": "*", "to": "closed" }
+        { "from": "verification", "to": "done", "guards": [{ "guard": "verdict", "is": "accepted" }] },
+        { "from": "verification", "to": "in-progress", "guards": [{ "guard": "verdict", "is": "changes-requested" }] },
+        { "from": "*", "to": "closed", "guards": ["children.terminal"] }
       ]
     },
     "story": {
@@ -94,13 +96,18 @@
       "states": {
         "open": { "owner": "orchestrator", "requires": ["description"] },
         "in-progress": { "owner": "orchestrator" },
-        "integrating": { "owner": "ci", "locked": true },
+        "integrating": { "owner": "orchestrator", "locked": true, "description": "The orchestrator integrates the story as one unit." },
         "done": { "terminal": true },
         "closed": { "terminal": true, "resolution": ["wont-do", "duplicate", "obsolete"] }
       },
       "transitions": [
         { "from": "open", "to": "in-progress" },
-        { "from": "in-progress", "to": "integrating", "guards": ["children.terminal"], "actions": ["delivery.integrate"] },
+        {
+          "from": "in-progress",
+          "to": "integrating",
+          "guards": [{ "guard": "children.in", "states": ["accepted", "done", "closed"] }],
+          "actions": ["delivery.integrate"]
+        },
         { "from": "integrating", "to": "done", "on": { "event": "delivery.integrated" } },
         { "from": "integrating", "to": "in-progress", "on": { "event": "delivery.integration-failed" } },
         { "from": "*", "to": "closed", "guards": ["children.terminal"] }
@@ -112,14 +119,24 @@
         "open": { "owner": "orchestrator", "requires": ["description"] },
         "development": { "owner": "developer" },
         "review": { "owner": "reviewer" },
-        "validation": { "owner": "ci" },
+        "accepted": {
+          "owner": "orchestrator",
+          "locked": true,
+          "description": "Accepted revision waiting for its story's integration; the leaf never reaches done before integration."
+        },
         "escalated": { "owner": "operator", "description": "The rework loop hit its limit; a person decides." },
         "done": { "terminal": true },
         "closed": { "terminal": true, "resolution": ["wont-do", "duplicate", "obsolete"] }
       },
       "transitions": [
         { "from": "open", "to": "development", "guards": ["estimate", "assignee", "blockers.clear"], "actions": ["spawn.owner"] },
-        { "from": "development", "to": "review", "guards": ["checklist.complete", "outcome.present", "delivery.cr-published"], "actions": ["spawn.owner"] },
+        {
+          "from": "development",
+          "to": "review",
+          "guards": ["checklist.complete", "outcome.present", "delivery.cr-published"],
+          "actions": ["spawn.owner"],
+          "description": "Review only after a published Change Request revision."
+        },
         {
           "from": "review",
           "to": "development",
@@ -127,9 +144,9 @@
           "limit": { "max": 3, "then": "escalated" },
           "description": "Rework. The fourth rejection escalates instead."
         },
-        { "from": "review", "to": "validation", "via": "accept_cr", "guards": ["review.accepted"] },
-        { "from": "validation", "to": "done", "on": { "event": "delivery.validation-passed" } },
-        { "from": "validation", "to": "development", "on": { "event": "delivery.validation-failed" } },
+        { "from": "review", "to": "accepted", "via": "accept_cr", "guards": ["delivery.cr-accepted"] },
+        { "from": "accepted", "to": "done", "on": { "event": "delivery.integrated" }, "description": "Emitted for every element of the integration unit when the story lands." },
+        { "from": "accepted", "to": "development", "on": { "event": "delivery.rework-started" }, "description": "A rollback of the accepted revision (landed rework, invalidation)." },
         { "from": "escalated", "to": "development" },
         { "from": "*", "to": "closed" }
       ]
@@ -146,7 +163,7 @@
       "transitions": [
         { "from": "draft", "to": "challenge", "guards": ["outcome.present"] },
         { "from": "challenge", "to": "draft", "guards": [{ "guard": "verdict", "is": "contradiction" }] },
-        { "from": "challenge", "to": "decision-needed", "guards": [{ "guard": "verdict", "is": "human-decision" }] },
+        { "from": "challenge", "to": "decision-needed", "guards": [{ "guard": "verdict", "is": "human-decision-needed" }] },
         { "from": "challenge", "to": "approved", "guards": [{ "guard": "verdict", "is": "no-contradiction" }] },
         { "from": "decision-needed", "to": "draft", "actions": [{ "action": "create", "type": "decision" }] },
         { "from": "*", "to": "closed" }
@@ -165,7 +182,7 @@
         { "from": "open", "to": "researching", "actions": ["spawn.owner"] },
         { "from": "researching", "to": "review", "guards": ["outcome.present"] },
         { "from": "review", "to": "researching", "guards": [{ "guard": "verdict", "is": "changes-requested" }] },
-        { "from": "review", "to": "done", "guards": ["review.accepted"] },
+        { "from": "review", "to": "done", "guards": [{ "guard": "verdict", "is": "accepted" }] },
         { "from": "*", "to": "closed" }
       ]
     },
