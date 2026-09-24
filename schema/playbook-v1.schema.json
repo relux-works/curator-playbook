@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/relux-works/curator-playbook/schema/playbook-v1.schema.json",
-  "title": "Playbook.json (draft v3.5, schema_version 1)",
-  "description": "Process configuration for agent systems. DRAFT v3.5, not normative until frozen; see spec/process-configuration.md. A playbook is data only: it never names a program, script, webhook or URL (spec section 8.5). The schema refuses URLs and shell syntax in hook arguments, schedule fields, event signers and package pins, and checks the arguments of the field, delivery.checks-passed and delivery.integration-evidence guards and of the delivery.integrate action; the per-hook argument schemas of the other provider hooks come with the provider modules (PC1). Keys starting with x- are reserved for extensions and ignored by the kernel.",
+  "title": "Playbook.json (draft v4.0, schema_version 1)",
+  "description": "Process configuration for agent systems. DRAFT v4.0, the freeze candidate, not normative until frozen; see spec/process-configuration.md and, for who counts as a person and how a person's acts are shown, spec/trust.md. A playbook is data only: it never names a program, script, webhook or URL (spec section 8.5). The schema refuses URLs and shell syntax in hook arguments, schedule fields, event signers and package pins, and checks the arguments of the field, delivery.checks-passed and delivery.integration-evidence guards and of the delivery.integrate action; the per-hook argument schemas of the other provider hooks come with the provider modules (PC1). Keys starting with x- are reserved for extensions and ignored by the kernel; an x- name the schema gives a meaning (a custom capability, risk marker or signature category) is data (spec section 2.2).",
   "type": "object",
   "required": [
     "$schema",
@@ -1885,7 +1885,8 @@
                       "halts",
                       "overrides",
                       "human-transitions",
-                      "delegations"
+                      "delegations",
+                      "installs"
                     ]
                   },
                   {
@@ -1901,7 +1902,7 @@
                 "hardware-bound",
                 "attested"
               ],
-              "description": "The minimum key assurance of each required signature. Default hardware-bound whenever the project sets a signature policy, because an agent running as the operator's OS user can obtain software signatures from ssh-agent freely (spec section 4.2).",
+              "description": "The minimum key assurance of each required signature. Default hardware-bound whenever the project sets a signature policy, because an agent running as the operator's OS user can obtain software signatures from ssh-agent freely (spec section 4.2, spec/trust.md section 6).",
               "default": "hardware-bound"
             },
             "user_verified": {
@@ -1966,16 +1967,22 @@
                         "required",
                         "if-supported"
                       ]
+                    },
+                    "installs": {
+                      "enum": [
+                        "required",
+                        "if-supported"
+                      ]
                     }
                   },
                   "minProperties": 1,
                   "description": "A value per category; categories not named keep their default."
                 }
               ],
-              "description": "Whether a required signature must show that a person acted: a FIDO2 signature with user verification (waggle section 4.4), or a signature from an enrolled operator companion app key (waggle A1 section 19.5). Defaults, whenever the project sets a signature policy: required for approvals, relaxations, halts and delegations; if-supported for spending, overrides and human-transitions. A project sets one value for every category or a value per category; with the default min_assurance, if-supported admits Secure Enclave and other hardware-bound keys, never software keys (spec section 4.2)."
+              "description": "Whether a required signature must show that a person acted. Defaults, whenever the project sets a signature policy: required for approvals, relaxations, halts and delegations; if-supported for spending, overrides, human-transitions and installs. A project sets one value for every category or a value per category. What satisfies each value is specified in spec/trust.md section 6; policy.signatures never governs a confirmation of a change to the process, whose floor no project lowers (spec/trust.md section 4)."
             }
           },
-          "description": "Project only: which human acts need a waggle approver signature, at what key assurance, and whether the signature must show user verification (spec section 4.2). Signed board acts need the waggle amendment A1, implemented with CM2; until then the validator warns about each category in require_for that has no signable form (spec section 10). Granting or revoking a delegation (category delegations) is signed whenever the project sets a signature policy, listed or not."
+          "description": "Project only: which human acts need a signature, at what key assurance, and whether the signature must show user verification (spec section 4.2; what satisfies them is spec/trust.md section 6). Signed board acts other than confirmations and narrowing acts need the waggle amendment A1, implemented with CM2; until then the validator warns about each category in require_for that has no signable form (spec section 10). Granting or revoking a delegation (category delegations) is signed whenever the project sets a signature policy, listed or not. installs covers an installation of a skill by a person or a delegate."
         },
         "delegation": {
           "type": "object",
@@ -2004,7 +2011,7 @@
                         "installs"
                       ]
                     },
-                    "description": "approvals of a named human role; transitions out of named human-owned states; relaxations, the approval of ask exceptions; installs, the installation of audited skills from the Curator registry into the project (spec sections 4.2, 8.6). No delegation covers a confirmation: of a change to the process, of a widening of the operator's files or of a skill from an unknown source."
+                    "description": "approvals of a named human role; transitions out of named human-owned states; relaxations, the approval of ask exceptions; installs, the installation of audited skills from the Curator registry into the project (spec sections 4.2, 8.6). No delegation covers a confirmation: of a change to the process, of a widening of the operator's files or of a skill from an unknown source. A rule that covers installs covers nothing else."
                   },
                   "role": {
                     "$ref": "#/$defs/qualified",
@@ -2037,7 +2044,7 @@
                     "items": {
                       "$ref": "#/$defs/field-condition"
                     },
-                    "description": "Hard ceilings: field conditions every delegated act must meet; a granted delegation may only be stricter. Refused on a rule that covers installs only, which has no element whose fields a ceiling could read."
+                    "description": "Hard ceilings: field conditions every delegated act must meet; a granted delegation may only be stricter, on the fields these ceilings read and no others. Refused on a rule that covers installs, which covers nothing else."
                   },
                   "self_approval": {
                     "type": "boolean",
@@ -2120,6 +2127,28 @@
                         "states"
                       ]
                     }
+                  },
+                  {
+                    "if": {
+                      "properties": {
+                        "acts": {
+                          "contains": {
+                            "const": "installs"
+                          }
+                        }
+                      },
+                      "required": [
+                        "acts"
+                      ]
+                    },
+                    "then": {
+                      "properties": {
+                        "acts": {
+                          "maxItems": 1
+                        }
+                      }
+                    },
+                    "description": "A rule that covers installs covers nothing else: an installation has no element whose fields a ceiling could read (spec section 4.2)."
                   }
                 ],
                 "dependentSchemas": {
@@ -2305,7 +2334,7 @@
         },
         "confirmers": {
           "$ref": "#/$defs/identifier",
-          "description": "Project only: the group of the project's people map whose principals confirm changes to the process (spec section 2.4). Absent: the operator who created the project, whose principal the board records at creation. Before CM2 each machine runs the version its own confirmer confirmed; from CM2 a confirmation is a signed board act verified against the roster."
+          "description": "Project only: the group of the project's people map whose principals confirm changes to the process (spec section 2.4). Absent: the board's anchor operator (spec/trust.md section 3). It is read from the version in force, never from the version being confirmed; a confirmation is a signed record on the board that every machine verifies against the roster of the version it replaces (spec/trust.md section 4). In PC1 the trust component is a guardrail stub."
         },
         "delivery": {
           "type": "object",
