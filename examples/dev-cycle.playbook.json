@@ -1,0 +1,191 @@
+{
+  "$schema": "../schema/playbook-v1.schema.json",
+  "schema_version": 1,
+  "name": "dev-cycle",
+  "description": "Software delivery with a producer-reviewer loop, a refuter on specifications and decisions as board memory. Template of the curator-playbook-dev-cycle package (skills/orchestrator/data/playbook.json).",
+  "root": "orchestrator",
+  "roles": {
+    "orchestrator": { "skill": "dev-orchestrator", "capability": "orchestrator" },
+    "developer": {
+      "skill": "dev-developer",
+      "capability": "producer",
+      "needs": { "prefer": { "publisher": "openai", "effort": "max" } }
+    },
+    "reviewer": {
+      "skill": "dev-reviewer",
+      "capability": "reviewer",
+      "needs": {
+        "prefer": { "publisher": "anthropic", "effort": "medium" },
+        "require": { "not_same_publisher_as": "developer" },
+        "on_unmet": "ask",
+        "approval": { "scope": "epic", "expires": "P30D" }
+      }
+    },
+    "refuter": {
+      "skill": "dev-refuter",
+      "capability": "reviewer",
+      "description": "Tries to refute a draft against recorded decisions (spec section 12)."
+    },
+    "researcher": { "skill": "dev-researcher", "capability": "analyst" },
+    "designer": { "skill": "dev-designer", "capability": "producer" },
+    "operator": { "kind": "human", "who": "operator", "capability": "approver" },
+    "ci": { "kind": "tool", "tool": "delivery.validate", "capability": "checker" }
+  },
+  "entities": {
+    "epic": {
+      "root": true,
+      "contains": ["story", "research-task", "decision"],
+      "workflow": "epic"
+    },
+    "story": {
+      "parents": ["epic"],
+      "contains": ["dev-task", "research-task", "design-task"],
+      "workflow": "story"
+    },
+    "dev-task": {
+      "parents": ["story"],
+      "workflow": "dev",
+      "fields": {
+        "task_class": { "type": "enum", "values": ["code", "metadata", "docs", "research"], "default": "code" }
+      },
+      "estimates": [
+        { "name": "complexity", "scale": "fibonacci" },
+        { "name": "duration", "scale": "hours" }
+      ]
+    },
+    "research-task": { "parents": ["epic", "story"], "workflow": "research" },
+    "design-task": { "parents": ["story"], "workflow": "spec" },
+    "decision": {
+      "parents": ["epic"],
+      "workflow": "decision",
+      "fields": {
+        "statement": { "type": "text", "required": true },
+        "scope": { "type": "string", "description": "What the decision governs, for example a module, a file or the whole project." },
+        "links": { "type": "list", "of": "string", "description": "Specifications, elements and commits it concerns." }
+      },
+      "description": "Board memory the refuter checks drafts against."
+    }
+  },
+  "workflows": {
+    "epic": {
+      "initial": "open",
+      "states": {
+        "open": { "owner": "orchestrator", "requires": ["description"] },
+        "hld": { "owner": "designer", "description": "High-level design." },
+        "challenge": { "owner": "refuter" },
+        "in-progress": { "owner": "orchestrator" },
+        "verification": { "owner": "reviewer" },
+        "done": { "terminal": true },
+        "closed": { "terminal": true, "resolution": ["wont-do", "duplicate", "obsolete"] }
+      },
+      "transitions": [
+        { "from": "open", "to": "hld" },
+        { "from": "hld", "to": "challenge", "guards": ["outcome.present"] },
+        { "from": "challenge", "to": "hld", "guards": [{ "guard": "verdict", "is": "contradiction" }] },
+        { "from": "challenge", "to": "in-progress", "guards": [{ "guard": "verdict", "is": "no-contradiction" }] },
+        { "from": "in-progress", "to": "verification", "guards": ["children.terminal"] },
+        { "from": "verification", "to": "done", "guards": ["review.accepted"] },
+        { "from": "verification", "to": "in-progress" },
+        { "from": "*", "to": "closed" }
+      ]
+    },
+    "story": {
+      "initial": "open",
+      "states": {
+        "open": { "owner": "orchestrator", "requires": ["description"] },
+        "in-progress": { "owner": "orchestrator" },
+        "integrating": { "owner": "ci", "locked": true },
+        "done": { "terminal": true },
+        "closed": { "terminal": true, "resolution": ["wont-do", "duplicate", "obsolete"] }
+      },
+      "transitions": [
+        { "from": "open", "to": "in-progress" },
+        { "from": "in-progress", "to": "integrating", "guards": ["children.terminal"], "actions": ["delivery.integrate"] },
+        { "from": "integrating", "to": "done", "on": { "event": "delivery.integrated" } },
+        { "from": "integrating", "to": "in-progress", "on": { "event": "delivery.integration-failed" } },
+        { "from": "*", "to": "closed", "guards": ["children.terminal"] }
+      ]
+    },
+    "dev": {
+      "initial": "open",
+      "states": {
+        "open": { "owner": "orchestrator", "requires": ["description"] },
+        "development": { "owner": "developer" },
+        "review": { "owner": "reviewer" },
+        "validation": { "owner": "ci" },
+        "escalated": { "owner": "operator", "description": "The rework loop hit its limit; a person decides." },
+        "done": { "terminal": true },
+        "closed": { "terminal": true, "resolution": ["wont-do", "duplicate", "obsolete"] }
+      },
+      "transitions": [
+        { "from": "open", "to": "development", "guards": ["estimate", "assignee", "blockers.clear"], "actions": ["spawn.owner"] },
+        { "from": "development", "to": "review", "guards": ["checklist.complete", "outcome.present", "delivery.cr-published"], "actions": ["spawn.owner"] },
+        {
+          "from": "review",
+          "to": "development",
+          "guards": [{ "guard": "verdict", "is": "changes-requested" }],
+          "limit": { "max": 3, "then": "escalated" },
+          "description": "Rework. The fourth rejection escalates instead."
+        },
+        { "from": "review", "to": "validation", "via": "accept_cr", "guards": ["review.accepted"] },
+        { "from": "validation", "to": "done", "on": { "event": "delivery.validation-passed" } },
+        { "from": "validation", "to": "development", "on": { "event": "delivery.validation-failed" } },
+        { "from": "escalated", "to": "development" },
+        { "from": "*", "to": "closed" }
+      ]
+    },
+    "spec": {
+      "initial": "draft",
+      "states": {
+        "draft": { "owner": "designer" },
+        "challenge": { "owner": "refuter" },
+        "decision-needed": { "owner": "operator" },
+        "approved": { "terminal": true },
+        "closed": { "terminal": true, "resolution": true }
+      },
+      "transitions": [
+        { "from": "draft", "to": "challenge", "guards": ["outcome.present"] },
+        { "from": "challenge", "to": "draft", "guards": [{ "guard": "verdict", "is": "contradiction" }] },
+        { "from": "challenge", "to": "decision-needed", "guards": [{ "guard": "verdict", "is": "human-decision" }] },
+        { "from": "challenge", "to": "approved", "guards": [{ "guard": "verdict", "is": "no-contradiction" }] },
+        { "from": "decision-needed", "to": "draft", "actions": [{ "action": "create", "type": "decision" }] },
+        { "from": "*", "to": "closed" }
+      ]
+    },
+    "research": {
+      "initial": "open",
+      "states": {
+        "open": { "owner": "orchestrator", "requires": ["description"] },
+        "researching": { "owner": "researcher" },
+        "review": { "owner": "reviewer" },
+        "done": { "terminal": true },
+        "closed": { "terminal": true, "resolution": true }
+      },
+      "transitions": [
+        { "from": "open", "to": "researching", "actions": ["spawn.owner"] },
+        { "from": "researching", "to": "review", "guards": ["outcome.present"] },
+        { "from": "review", "to": "researching", "guards": [{ "guard": "verdict", "is": "changes-requested" }] },
+        { "from": "review", "to": "done", "guards": ["review.accepted"] },
+        { "from": "*", "to": "closed" }
+      ]
+    },
+    "decision": {
+      "initial": "proposed",
+      "states": {
+        "proposed": { "owner": "operator" },
+        "accepted": { "terminal": true },
+        "rejected": { "terminal": true },
+        "superseded": { "terminal": true }
+      },
+      "transitions": [
+        { "from": "proposed", "to": "accepted" },
+        { "from": "proposed", "to": "rejected" },
+        { "from": "accepted", "to": "superseded", "reopen": true, "guards": [{ "guard": "fields.present", "fields": ["links"] }] }
+      ]
+    }
+  },
+  "policy": {
+    "review": { "default": "required" },
+    "goals": { "orchestrator_goal": "story" }
+  }
+}

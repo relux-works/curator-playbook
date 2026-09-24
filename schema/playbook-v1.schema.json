@@ -1,0 +1,1113 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/relux-works/curator-playbook/schema/playbook-v1.schema.json",
+  "title": "Playbook.json (draft, schema_version 1)",
+  "description": "Process configuration for agent systems. DRAFT, not normative; see spec/process-configuration.md. Keys starting with x- are reserved for extensions and ignored by the kernel.",
+  "type": "object",
+  "required": [
+    "schema_version"
+  ],
+  "additionalProperties": false,
+  "patternProperties": {
+    "^x-": {}
+  },
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "schema_version": {
+      "const": 1
+    },
+    "name": {
+      "$ref": "#/$defs/identifier",
+      "description": "Playbook name. Required for a published template; optional in a project file."
+    },
+    "description": {
+      "type": "string"
+    },
+    "extends": {
+      "$ref": "#/$defs/identifier",
+      "description": "Single parent playbook, resolved from installed skills. The file then carries only differences (spec section 7.1)."
+    },
+    "uses": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/identifier"
+      },
+      "uniqueItems": true,
+      "description": "Composition of several playbooks into one process (spec section 7.2)."
+    },
+    "slots": {
+      "type": "object",
+      "description": "Abstract element types this playbook refers to without defining them; a composing project binds each slot to a concrete type.",
+      "propertyNames": {
+        "$ref": "#/$defs/identifier"
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/slot"
+      }
+    },
+    "bind": {
+      "type": "object",
+      "description": "Slot bindings in a composing project: key is <playbook>.<slot> (or <slot> when unambiguous), value is a concrete entity type.",
+      "propertyNames": {
+        "type": "string",
+        "pattern": "^([a-z][a-z0-9-]*\\.)?[a-z][a-z0-9-]*$"
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/identifier"
+      }
+    },
+    "root": {
+      "$ref": "#/$defs/identifier",
+      "description": "Role alias of the orchestrator that owns this process."
+    },
+    "roles": {
+      "type": "object",
+      "propertyNames": {
+        "$ref": "#/$defs/identifier"
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/role"
+      }
+    },
+    "entities": {
+      "type": "object",
+      "propertyNames": {
+        "$ref": "#/$defs/identifier"
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/entity"
+      }
+    },
+    "workflows": {
+      "type": "object",
+      "propertyNames": {
+        "$ref": "#/$defs/identifier"
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/workflow"
+      }
+    },
+    "schedules": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/schedule"
+      }
+    },
+    "policy": {
+      "$ref": "#/$defs/policy"
+    },
+    "ui": {
+      "$ref": "#/$defs/ui"
+    }
+  },
+  "$defs": {
+    "identifier": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]*$",
+      "maxLength": 64
+    },
+    "field-name": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]*$",
+      "maxLength": 64,
+      "description": "Field names use snake_case, like task-board's task_class."
+    },
+    "qualified": {
+      "type": "string",
+      "pattern": "^([a-z][a-z0-9-]*\\.)?[a-z][a-z0-9-]*$",
+      "description": "A name, optionally qualified by its playbook when a composition makes it ambiguous."
+    },
+    "hook-name": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_.-]*$",
+      "maxLength": 96
+    },
+    "duration": {
+      "type": "string",
+      "pattern": "^P(?!$)(\\d+Y)?(\\d+M)?(\\d+W)?(\\d+D)?(T(?=\\d)(\\d+H)?(\\d+M)?(\\d+S)?)?$",
+      "description": "ISO 8601 duration, for example PT15M or P1W."
+    },
+    "ui": {
+      "type": "object",
+      "description": "Layout and presentation hints for a visual constructor. Ignored by the kernel and excluded from the semantic digest."
+    },
+    "slot": {
+      "type": "object",
+      "additionalProperties": false,
+      "patternProperties": {
+        "^x-": {}
+      },
+      "properties": {
+        "description": {
+          "type": "string"
+        },
+        "requires": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "estimates": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/identifier"
+              },
+              "uniqueItems": true
+            },
+            "fields": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/field-name"
+              },
+              "uniqueItems": true
+            },
+            "terminal": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/identifier"
+              },
+              "uniqueItems": true
+            }
+          },
+          "description": "Contract the bound type must satisfy: named estimate dimensions, fields, terminal states."
+        }
+      }
+    },
+    "need": {
+      "type": "object",
+      "additionalProperties": false,
+      "patternProperties": {
+        "^x-": {}
+      },
+      "description": "A requirement or preference stated in portable terms; never a concrete model id.",
+      "properties": {
+        "publisher": {
+          "$ref": "#/$defs/string-or-list"
+        },
+        "family": {
+          "$ref": "#/$defs/string-or-list"
+        },
+        "capability": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "uniqueItems": true
+        },
+        "effort": {
+          "enum": [
+            "low",
+            "medium",
+            "high",
+            "xhigh",
+            "max",
+            "ultra"
+          ]
+        },
+        "local": {
+          "type": "boolean"
+        },
+        "not_same_publisher_as": {
+          "$ref": "#/$defs/identifier",
+          "description": "Independence: differ from the publisher bound to that role alias."
+        }
+      }
+    },
+    "string-or-list": {
+      "oneOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        }
+      ]
+    },
+    "needs": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "require": {
+          "$ref": "#/$defs/need"
+        },
+        "prefer": {
+          "$ref": "#/$defs/need"
+        },
+        "on_unmet": {
+          "enum": [
+            "block",
+            "fallback",
+            "ask",
+            "degrade"
+          ]
+        },
+        "fallback": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/need"
+          },
+          "minItems": 1
+        },
+        "approval": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "scope": {
+              "enum": [
+                "element",
+                "story",
+                "epic",
+                "project"
+              ]
+            },
+            "expires": {
+              "$ref": "#/$defs/duration"
+            }
+          }
+        }
+      }
+    },
+    "role": {
+      "type": "object",
+      "additionalProperties": false,
+      "patternProperties": {
+        "^x-": {}
+      },
+      "properties": {
+        "kind": {
+          "enum": [
+            "agent",
+            "human",
+            "tool",
+            "comb"
+          ],
+          "default": "agent"
+        },
+        "skill": {
+          "$ref": "#/$defs/identifier",
+          "description": "agent: the role skill, by installed skill name."
+        },
+        "who": {
+          "type": "string",
+          "description": "human: a person or group, resolved by the operator or project directory."
+        },
+        "tool": {
+          "type": "string",
+          "description": "tool: a program, module hook or webhook identity."
+        },
+        "process": {
+          "$ref": "#/$defs/identifier",
+          "description": "comb: the receiving process (another playbook instance)."
+        },
+        "capability": {
+          "anyOf": [
+            {
+              "enum": [
+                "orchestrator",
+                "producer",
+                "reviewer",
+                "analyst",
+                "tester",
+                "approver",
+                "checker"
+              ]
+            },
+            {
+              "type": "string",
+              "pattern": "^x-[a-z0-9-]+$"
+            }
+          ]
+        },
+        "needs": {
+          "$ref": "#/$defs/needs"
+        },
+        "description": {
+          "type": "string"
+        },
+        "ui": {
+          "$ref": "#/$defs/ui"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "human"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "required": [
+              "who"
+            ],
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "skill"
+                  ]
+                },
+                {
+                  "required": [
+                    "needs"
+                  ]
+                }
+              ]
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "tool"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "required": [
+              "tool"
+            ],
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "skill"
+                  ]
+                },
+                {
+                  "required": [
+                    "needs"
+                  ]
+                }
+              ]
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "comb"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "required": [
+              "process"
+            ],
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "skill"
+                  ]
+                },
+                {
+                  "required": [
+                    "needs"
+                  ]
+                }
+              ]
+            }
+          }
+        },
+        {
+          "if": {
+            "not": {
+              "required": [
+                "kind"
+              ]
+            }
+          },
+          "then": {
+            "required": [
+              "skill"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "agent"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "required": [
+              "skill"
+            ]
+          }
+        }
+      ]
+    },
+    "field": {
+      "type": "object",
+      "additionalProperties": false,
+      "patternProperties": {
+        "^x-": {}
+      },
+      "required": [
+        "type"
+      ],
+      "properties": {
+        "type": {
+          "enum": [
+            "string",
+            "text",
+            "integer",
+            "number",
+            "boolean",
+            "date",
+            "datetime",
+            "duration",
+            "money",
+            "enum",
+            "ref",
+            "list"
+          ]
+        },
+        "values": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "of": {
+          "type": "string",
+          "description": "list: the item type (a field type name, or an entity type for ref items)."
+        },
+        "ref": {
+          "$ref": "#/$defs/qualified",
+          "description": "ref: the referenced entity type."
+        },
+        "currency": {
+          "type": "string",
+          "pattern": "^[A-Z]{3}$"
+        },
+        "required": {
+          "type": "boolean"
+        },
+        "default": {},
+        "description": {
+          "type": "string"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "enum"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "values"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "ref"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "ref"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "list"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "of"
+            ]
+          }
+        }
+      ]
+    },
+    "estimate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "scale"
+      ],
+      "properties": {
+        "name": {
+          "$ref": "#/$defs/identifier"
+        },
+        "scale": {
+          "enum": [
+            "fibonacci",
+            "points",
+            "tshirt",
+            "hours",
+            "days"
+          ]
+        },
+        "description": {
+          "type": "string"
+        }
+      }
+    },
+    "entity": {
+      "type": "object",
+      "additionalProperties": false,
+      "patternProperties": {
+        "^x-": {}
+      },
+      "properties": {
+        "root": {
+          "type": "boolean",
+          "description": "May stand at the top of the hierarchy."
+        },
+        "parents": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/qualified"
+          },
+          "uniqueItems": true
+        },
+        "contains": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/qualified"
+          },
+          "uniqueItems": true
+        },
+        "workflow": {
+          "$ref": "#/$defs/qualified"
+        },
+        "derived_status": {
+          "type": "boolean",
+          "description": "Status aggregates from children except where a declared transition sets it."
+        },
+        "fields": {
+          "type": "object",
+          "propertyNames": {
+            "$ref": "#/$defs/field-name"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/field"
+          }
+        },
+        "estimates": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/estimate"
+          }
+        },
+        "privacy": {
+          "enum": [
+            "inherit",
+            "private",
+            "team",
+            "public"
+          ]
+        },
+        "description": {
+          "type": "string"
+        },
+        "ui": {
+          "$ref": "#/$defs/ui"
+        }
+      }
+    },
+    "owner": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/qualified"
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "one_of",
+            "by"
+          ],
+          "properties": {
+            "one_of": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/qualified"
+              },
+              "minItems": 2,
+              "uniqueItems": true
+            },
+            "by": {
+              "type": "string",
+              "description": "What picks the one owner per element, for example assignment.role."
+            }
+          },
+          "description": "Exactly one owner per element, chosen per element from a fixed set."
+        }
+      ]
+    },
+    "helper": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/qualified"
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "role"
+          ],
+          "properties": {
+            "role": {
+              "$ref": "#/$defs/qualified"
+            },
+            "min": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "max": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "blind": {
+              "type": "boolean",
+              "description": "Helpers answer independently before the owner reveals answers (planning poker)."
+            }
+          }
+        }
+      ]
+    },
+    "hook": {
+      "description": "A guard or action reference: a name, or an object whose first key names the hook and whose other keys are its arguments.",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/hook-name"
+        },
+        {
+          "type": "object",
+          "minProperties": 1,
+          "properties": {
+            "guard": {
+              "$ref": "#/$defs/hook-name"
+            },
+            "action": {
+              "$ref": "#/$defs/hook-name"
+            }
+          },
+          "oneOf": [
+            {
+              "required": [
+                "guard"
+              ]
+            },
+            {
+              "required": [
+                "action"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "state": {
+      "type": "object",
+      "additionalProperties": false,
+      "patternProperties": {
+        "^x-": {}
+      },
+      "properties": {
+        "owner": {
+          "$ref": "#/$defs/owner"
+        },
+        "helpers": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/helper"
+          }
+        },
+        "requires": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/hook"
+          },
+          "description": "Entry conditions: guards applied to every transition into this state."
+        },
+        "terminal": {
+          "type": "boolean"
+        },
+        "resolution": {
+          "oneOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/identifier"
+              },
+              "minItems": 1,
+              "uniqueItems": true
+            }
+          ]
+        },
+        "locked": {
+          "type": "boolean",
+          "description": "Only transitions that name this state in from leave it; from * never matches it."
+        },
+        "remove": {
+          "type": "boolean",
+          "description": "In a file that extends a parent: delete the inherited state."
+        },
+        "description": {
+          "type": "string"
+        },
+        "ui": {
+          "$ref": "#/$defs/ui"
+        }
+      },
+      "if": {
+        "properties": {
+          "terminal": {
+            "const": true
+          }
+        },
+        "required": [
+          "terminal"
+        ]
+      },
+      "then": {
+        "not": {
+          "required": [
+            "owner"
+          ]
+        }
+      }
+    },
+    "trigger": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "event": {
+          "$ref": "#/$defs/hook-name"
+        },
+        "after": {
+          "$ref": "#/$defs/duration"
+        }
+      },
+      "oneOf": [
+        {
+          "required": [
+            "event"
+          ]
+        },
+        {
+          "required": [
+            "after"
+          ]
+        }
+      ]
+    },
+    "transition": {
+      "type": "object",
+      "additionalProperties": false,
+      "patternProperties": {
+        "^x-": {}
+      },
+      "required": [
+        "from",
+        "to"
+      ],
+      "properties": {
+        "from": {
+          "oneOf": [
+            {
+              "const": "*"
+            },
+            {
+              "$ref": "#/$defs/identifier"
+            },
+            {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/identifier"
+              },
+              "minItems": 1,
+              "uniqueItems": true
+            }
+          ]
+        },
+        "to": {
+          "$ref": "#/$defs/identifier"
+        },
+        "via": {
+          "$ref": "#/$defs/hook-name",
+          "description": "The one command that performs this transition, for example accept_cr."
+        },
+        "guards": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/hook"
+          }
+        },
+        "actions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/hook"
+          }
+        },
+        "on": {
+          "$ref": "#/$defs/trigger"
+        },
+        "limit": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "max",
+            "then"
+          ],
+          "properties": {
+            "max": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "then": {
+              "$ref": "#/$defs/identifier"
+            }
+          },
+          "description": "Loop limit: after max firings for one element, the transition leads to then instead."
+        },
+        "reopen": {
+          "type": "boolean",
+          "description": "Required for a transition that leaves a terminal state."
+        },
+        "remove": {
+          "type": "boolean",
+          "description": "In a file that extends a parent: delete the inherited transition with the same from and to."
+        },
+        "description": {
+          "type": "string"
+        },
+        "ui": {
+          "$ref": "#/$defs/ui"
+        }
+      }
+    },
+    "workflow": {
+      "type": "object",
+      "additionalProperties": false,
+      "patternProperties": {
+        "^x-": {}
+      },
+      "properties": {
+        "initial": {
+          "$ref": "#/$defs/identifier"
+        },
+        "states": {
+          "type": "object",
+          "propertyNames": {
+            "$ref": "#/$defs/identifier"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/state"
+          }
+        },
+        "transitions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/transition"
+          }
+        },
+        "description": {
+          "type": "string"
+        },
+        "ui": {
+          "$ref": "#/$defs/ui"
+        }
+      }
+    },
+    "schedule": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "create"
+      ],
+      "properties": {
+        "every": {
+          "$ref": "#/$defs/duration"
+        },
+        "cron": {
+          "type": "string"
+        },
+        "create": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ],
+          "properties": {
+            "type": {
+              "$ref": "#/$defs/qualified"
+            },
+            "title": {
+              "type": "string"
+            },
+            "parent": {
+              "type": "string"
+            },
+            "fields": {
+              "type": "object"
+            }
+          }
+        },
+        "description": {
+          "type": "string"
+        }
+      },
+      "oneOf": [
+        {
+          "required": [
+            "every"
+          ]
+        },
+        {
+          "required": [
+            "cron"
+          ]
+        }
+      ]
+    },
+    "policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "patternProperties": {
+        "^x-": {}
+      },
+      "properties": {
+        "review": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "default": {
+              "enum": [
+                "required",
+                "light",
+                "none"
+              ]
+            }
+          }
+        },
+        "capacity": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "container",
+              "dimension",
+              "max"
+            ],
+            "properties": {
+              "container": {
+                "$ref": "#/$defs/qualified"
+              },
+              "dimension": {
+                "$ref": "#/$defs/identifier"
+              },
+              "max": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              }
+            }
+          }
+        },
+        "privacy": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "visibility": {
+              "enum": [
+                "private",
+                "team",
+                "public"
+              ]
+            },
+            "redact_fields": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/field-name"
+              },
+              "uniqueItems": true
+            }
+          }
+        },
+        "version_control": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "confirm": {
+              "type": "boolean"
+            },
+            "enforced_types": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/identifier"
+              },
+              "uniqueItems": true
+            }
+          }
+        },
+        "loop_detection": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "threshold": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        },
+        "goals": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "orchestrator_goal": {
+              "$ref": "#/$defs/qualified",
+              "description": "The entity type whose current instance is the orchestrator's goal (short goals: a milestone or a sprint)."
+            }
+          }
+        }
+      }
+    }
+  }
+}

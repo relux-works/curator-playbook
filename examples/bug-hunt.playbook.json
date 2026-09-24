@@ -1,0 +1,91 @@
+{
+  "$schema": "../schema/playbook-v1.schema.json",
+  "schema_version": 1,
+  "name": "bug-hunt",
+  "description": "Audit an existing system and prove defects; every proven finding is handed off to the process that fixes it. The receiving element type is a slot the project binds, for example to dev-cycle's dev-task.",
+  "root": "orchestrator",
+  "slots": {
+    "fix-target": {
+      "description": "The element type in the receiving process that carries the fix.",
+      "requires": { "terminal": ["done", "closed"] }
+    }
+  },
+  "roles": {
+    "orchestrator": { "skill": "hunt-orchestrator", "capability": "orchestrator" },
+    "hunter": {
+      "skill": "hunt-hunter",
+      "capability": "producer",
+      "needs": { "prefer": { "effort": "max" } }
+    },
+    "verifier": {
+      "skill": "hunt-verifier",
+      "capability": "reviewer",
+      "needs": { "require": { "not_same_publisher_as": "hunter" }, "on_unmet": "degrade" }
+    },
+    "fixers": {
+      "kind": "comb",
+      "process": "dev",
+      "description": "The process that receives proven findings; the project names it."
+    }
+  },
+  "entities": {
+    "hunt": {
+      "root": true,
+      "contains": ["finding"],
+      "workflow": "hunt",
+      "fields": {
+        "target": { "type": "string", "required": true, "description": "The system or area under audit." }
+      }
+    },
+    "finding": {
+      "parents": ["hunt"],
+      "workflow": "finding",
+      "fields": {
+        "severity": { "type": "enum", "values": ["low", "medium", "high", "critical"], "required": true },
+        "location": { "type": "string" },
+        "reproduction": { "type": "text" },
+        "fix": { "type": "ref", "ref": "fix-target", "description": "Set by the hand-off action." }
+      }
+    }
+  },
+  "workflows": {
+    "hunt": {
+      "initial": "open",
+      "states": {
+        "open": { "owner": "orchestrator", "requires": ["description"] },
+        "hunting": { "owner": "orchestrator", "description": "The orchestrator spawns hunters per area; each files findings." },
+        "done": { "terminal": true },
+        "closed": { "terminal": true, "resolution": true }
+      },
+      "transitions": [
+        { "from": "open", "to": "hunting" },
+        { "from": "hunting", "to": "done", "guards": ["children.terminal"] },
+        { "from": "*", "to": "closed" }
+      ]
+    },
+    "finding": {
+      "initial": "reported",
+      "states": {
+        "reported": { "owner": "orchestrator" },
+        "reproducing": { "owner": "hunter" },
+        "verifying": { "owner": "verifier" },
+        "fixing": { "owner": "fixers", "description": "Worked in the receiving process; comes back when the fix element is terminal." },
+        "fixed": { "terminal": true },
+        "rejected": { "terminal": true, "resolution": ["not-reproducible", "duplicate", "by-design"] }
+      },
+      "transitions": [
+        { "from": "reported", "to": "reproducing", "actions": ["spawn.owner"] },
+        { "from": "reproducing", "to": "verifying", "guards": ["outcome.present", { "guard": "fields.present", "fields": ["reproduction"] }] },
+        { "from": "verifying", "to": "reproducing", "guards": [{ "guard": "verdict", "is": "changes-requested" }], "limit": { "max": 2, "then": "rejected" } },
+        { "from": "verifying", "to": "rejected", "guards": [{ "guard": "verdict", "is": "rejected" }] },
+        {
+          "from": "verifying",
+          "to": "fixing",
+          "guards": ["review.accepted"],
+          "actions": [{ "action": "handoff", "to": "fixers", "create": "fix-target", "link_field": "fix" }]
+        },
+        { "from": "fixing", "to": "fixed", "on": { "event": "handoff.terminal" } }
+      ]
+    }
+  }
+}

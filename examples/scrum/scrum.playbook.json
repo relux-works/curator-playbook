@@ -1,0 +1,132 @@
+{
+  "$schema": "../../schema/playbook-v1.schema.json",
+  "schema_version": 1,
+  "name": "scrum",
+  "description": "A cadence layer: it decides which work is selected and when, not how an item is built. The work item is a slot, bound by the project to a type from a delivery playbook such as dev-cycle's story.",
+  "root": "scrum-orchestrator",
+  "slots": {
+    "work-item": {
+      "description": "Backlog item planned into sprints.",
+      "requires": { "estimates": ["complexity", "duration"], "terminal": ["done", "closed"] }
+    }
+  },
+  "roles": {
+    "scrum-orchestrator": { "skill": "scrum-orchestrator", "capability": "orchestrator" },
+    "product-owner": { "skill": "scrum-product-owner", "capability": "analyst", "description": "Ranks the backlog against the goal." },
+    "facilitator": { "skill": "scrum-facilitator", "capability": "analyst" },
+    "estimator": { "skill": "scrum-estimator", "capability": "analyst" },
+    "sponsor": { "kind": "human", "who": "product-sponsor", "capability": "approver" }
+  },
+  "entities": {
+    "goal": {
+      "root": true,
+      "contains": ["milestone"],
+      "workflow": "goal",
+      "fields": { "target_date": { "type": "date" } }
+    },
+    "milestone": { "parents": ["goal"], "contains": ["sprint"], "workflow": "milestone" },
+    "sprint": {
+      "parents": ["milestone"],
+      "contains": ["work-item", "grooming", "planning", "retro"],
+      "workflow": "sprint",
+      "fields": { "velocity": { "type": "number", "description": "Complexity points accepted, written by the retro." } }
+    },
+    "grooming": { "parents": ["sprint"], "workflow": "grooming" },
+    "planning": { "parents": ["sprint"], "workflow": "planning" },
+    "retro": { "parents": ["sprint"], "workflow": "retro" }
+  },
+  "workflows": {
+    "goal": {
+      "initial": "open",
+      "states": {
+        "open": { "owner": "sponsor", "requires": ["description"] },
+        "active": { "owner": "scrum-orchestrator" },
+        "achieved": { "terminal": true },
+        "abandoned": { "terminal": true, "resolution": true }
+      },
+      "transitions": [
+        { "from": "open", "to": "active" },
+        { "from": "active", "to": "achieved", "guards": ["children.terminal", { "guard": "approvals", "role": "sponsor", "min": 1 }] },
+        { "from": "*", "to": "abandoned" }
+      ]
+    },
+    "milestone": {
+      "initial": "planned",
+      "states": {
+        "planned": { "owner": "product-owner" },
+        "active": { "owner": "scrum-orchestrator" },
+        "done": { "terminal": true },
+        "dropped": { "terminal": true, "resolution": true }
+      },
+      "transitions": [
+        { "from": "planned", "to": "active" },
+        { "from": "active", "to": "done", "guards": ["children.terminal"] },
+        { "from": "*", "to": "dropped" }
+      ]
+    },
+    "sprint": {
+      "initial": "planned",
+      "states": {
+        "planned": { "owner": "scrum-orchestrator" },
+        "active": { "owner": "scrum-orchestrator" },
+        "review": { "owner": "sponsor" },
+        "retrospective": { "owner": "facilitator" },
+        "closed": { "terminal": true }
+      },
+      "transitions": [
+        {
+          "from": "planned",
+          "to": "active",
+          "guards": [{ "guard": "children.terminal", "types": ["grooming", "planning"] }, { "guard": "capacity", "dimension": "complexity" }]
+        },
+        { "from": "active", "to": "review", "guards": [{ "guard": "children.terminal-or-carried", "types": ["work-item"] }] },
+        { "from": "review", "to": "retrospective" },
+        { "from": "retrospective", "to": "closed", "guards": [{ "guard": "children.terminal", "types": ["retro"] }] }
+      ]
+    },
+    "grooming": {
+      "initial": "open",
+      "states": {
+        "open": { "owner": "scrum-orchestrator" },
+        "estimating": {
+          "owner": "facilitator",
+          "helpers": [{ "role": "estimator", "min": 3, "blind": true }],
+          "description": "Planning poker: estimators answer blind; the facilitator reveals and settles both estimates; unclear items go to research first."
+        },
+        "done": { "terminal": true }
+      },
+      "transitions": [
+        { "from": "open", "to": "estimating", "actions": ["spawn.owner"] },
+        { "from": "estimating", "to": "done", "guards": [{ "guard": "estimates.present", "types": ["work-item"], "dimensions": ["complexity", "duration"] }] }
+      ]
+    },
+    "planning": {
+      "initial": "open",
+      "states": {
+        "open": { "owner": "scrum-orchestrator" },
+        "selecting": { "owner": "product-owner", "description": "Rank by value, then by the complexity-duration matrix; fill the sprint up to capacity." },
+        "committed": { "terminal": true }
+      },
+      "transitions": [
+        { "from": "open", "to": "selecting", "actions": ["spawn.owner"] },
+        { "from": "selecting", "to": "committed", "guards": [{ "guard": "capacity", "dimension": "complexity" }] }
+      ]
+    },
+    "retro": {
+      "initial": "open",
+      "states": {
+        "open": { "owner": "facilitator" },
+        "analysing": { "owner": "facilitator", "description": "Estimate against actual; name what slowed the sprint." },
+        "done": { "terminal": true }
+      },
+      "transitions": [
+        { "from": "open", "to": "analysing", "actions": [{ "action": "compute.velocity", "dimension": "complexity" }] },
+        { "from": "analysing", "to": "done", "actions": [{ "action": "create", "type": "work-item", "from_outcome": "improvements" }] }
+      ]
+    }
+  },
+  "policy": {
+    "capacity": [{ "container": "sprint", "dimension": "complexity", "max": 100 }],
+    "goals": { "orchestrator_goal": "sprint" }
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "$schema": "../../schema/playbook-v1.schema.json",
+  "schema_version": 1,
+  "description": "A project running Scrum cadence over dev-cycle delivery: both playbooks are composed, the scrum work-item slot is bound to dev-cycle's story, and the scrum orchestrator is the root. Dev-cycle's own orchestrator still owns story-level states.",
+  "uses": ["dev-cycle", "scrum"],
+  "bind": { "scrum.work-item": "story" },
+  "root": "scrum-orchestrator",
+  "entities": {
+    "story": {
+      "parents": ["epic", "sprint"],
+      "estimates": [
+        { "name": "complexity", "scale": "fibonacci" },
+        { "name": "duration", "scale": "days" }
+      ],
+      "description": "Difference only: stories may sit in a sprint and carry the two estimates the slot requires."
+    }
+  }
+}

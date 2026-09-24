@@ -1,0 +1,110 @@
+{
+  "$schema": "../schema/playbook-v1.schema.json",
+  "schema_version": 1,
+  "name": "cafe-ops",
+  "description": "Running a small cafe: a weekly inventory creates purchase orders; a person approves spending and confirms deliveries; the supplier portal and the payment gateway are tools; invoices go to the accounting process. Exercises custom fields, human and tool owners, timers, recurrence, external events, parallel lines with a join, a loop limit and hand-off.",
+  "root": "cafe-orchestrator",
+  "roles": {
+    "cafe-orchestrator": { "skill": "cafe-orchestrator", "capability": "orchestrator" },
+    "stock-keeper": { "skill": "cafe-stock-keeper", "capability": "producer", "needs": { "prefer": { "local": true } } },
+    "buyer": { "skill": "cafe-buyer", "capability": "producer" },
+    "manager": { "kind": "human", "who": "cafe-manager", "capability": "approver" },
+    "supplier-portal": { "kind": "tool", "tool": "webhook:supplier-portal", "capability": "checker" },
+    "payments": { "kind": "tool", "tool": "webhook:payment-gateway", "capability": "checker" },
+    "accounting": { "kind": "comb", "process": "accounting" }
+  },
+  "entities": {
+    "inventory-check": {
+      "root": true,
+      "contains": ["purchase-order"],
+      "workflow": "inventory",
+      "fields": {
+        "low_items": { "type": "list", "of": "string", "description": "Items under their reorder level." }
+      }
+    },
+    "purchase-order": {
+      "parents": ["inventory-check"],
+      "contains": ["line"],
+      "workflow": "purchase",
+      "fields": {
+        "supplier": { "type": "string", "required": true },
+        "amount": { "type": "money", "currency": "EUR", "required": true },
+        "due": { "type": "date" },
+        "invoice": { "type": "ref", "ref": "accounting.invoice" }
+      }
+    },
+    "line": {
+      "parents": ["purchase-order"],
+      "workflow": "line",
+      "fields": {
+        "item": { "type": "string", "required": true },
+        "quantity": { "type": "number", "required": true }
+      }
+    }
+  },
+  "workflows": {
+    "inventory": {
+      "initial": "open",
+      "states": {
+        "open": { "owner": "cafe-orchestrator" },
+        "counting": { "owner": "stock-keeper" },
+        "approval": { "owner": "manager" },
+        "done": { "terminal": true }
+      },
+      "transitions": [
+        { "from": "open", "to": "counting", "actions": ["spawn.owner"] },
+        { "from": "counting", "to": "approval", "guards": [{ "guard": "fields.present", "fields": ["low_items"] }] },
+        { "from": "approval", "to": "done", "guards": [{ "guard": "approvals", "role": "manager", "min": 1 }], "actions": [{ "action": "create", "type": "purchase-order", "per": "low_items" }] }
+      ]
+    },
+    "purchase": {
+      "initial": "draft",
+      "states": {
+        "draft": { "owner": "buyer" },
+        "approval": { "owner": "manager" },
+        "sent": { "owner": "supplier-portal" },
+        "escalated": { "owner": "manager", "description": "The supplier did not confirm in time, or approval kept being refused." },
+        "confirmed": { "owner": "cafe-orchestrator" },
+        "receiving": { "owner": "manager", "description": "A person checks each delivered line." },
+        "invoiced": { "owner": "accounting" },
+        "paid": { "terminal": true },
+        "cancelled": { "terminal": true, "resolution": ["supplier-declined", "not-needed"] }
+      },
+      "transitions": [
+        { "from": "draft", "to": "approval", "guards": [{ "guard": "fields.present", "fields": ["supplier", "amount"] }] },
+        { "from": "approval", "to": "draft", "guards": [{ "guard": "verdict", "is": "changes-requested" }], "limit": { "max": 2, "then": "escalated" } },
+        { "from": "approval", "to": "sent", "guards": [{ "guard": "approvals", "role": "manager", "min": 1 }], "actions": [{ "action": "notify", "to": "supplier-portal" }] },
+        { "from": "sent", "to": "confirmed", "on": { "event": "supplier.confirmed" } },
+        { "from": "sent", "to": "escalated", "on": { "after": "PT15M" } },
+        { "from": "escalated", "to": "sent" },
+        { "from": "confirmed", "to": "receiving", "on": { "event": "supplier.shipped" } },
+        {
+          "from": "receiving",
+          "to": "invoiced",
+          "guards": ["children.terminal"],
+          "actions": [{ "action": "handoff", "to": "accounting", "create": "accounting.invoice", "link_field": "invoice" }]
+        },
+        { "from": "invoiced", "to": "paid", "on": { "event": "payment.received" } },
+        { "from": "*", "to": "cancelled" }
+      ]
+    },
+    "line": {
+      "initial": "expected",
+      "states": {
+        "expected": { "owner": "manager" },
+        "received": { "terminal": true },
+        "missing": { "terminal": true, "resolution": ["short", "damaged", "wrong-item"] }
+      },
+      "transitions": [
+        { "from": "expected", "to": "received" },
+        { "from": "expected", "to": "missing" }
+      ]
+    }
+  },
+  "schedules": [
+    { "every": "P1W", "create": { "type": "inventory-check", "title": "Weekly inventory" } }
+  ],
+  "policy": {
+    "privacy": { "visibility": "team", "redact_fields": ["amount"] }
+  }
+}

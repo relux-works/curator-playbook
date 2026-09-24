@@ -1,0 +1,78 @@
+{
+  "$schema": "../schema/playbook-v1.schema.json",
+  "schema_version": 1,
+  "name": "formal-missions",
+  "description": "Expressibility check modelled on prove2.me: a mission is split into milestone lemmas; each attempt is accepted only when a tool, the Lean kernel, checks it. The strongest guard is a machine checker owning a state.",
+  "root": "orchestrator",
+  "roles": {
+    "orchestrator": { "skill": "proof-orchestrator", "capability": "orchestrator" },
+    "captain": { "kind": "human", "who": "mission-captains", "capability": "approver" },
+    "prover": { "skill": "proof-prover", "capability": "producer", "needs": { "prefer": { "effort": "max" } } },
+    "lean": { "kind": "tool", "tool": "lean-kernel-check", "capability": "checker" }
+  },
+  "entities": {
+    "mission": {
+      "root": true,
+      "contains": ["milestone"],
+      "workflow": "mission",
+      "fields": {
+        "source": { "type": "text", "required": true, "description": "The paper, book section or open problem." },
+        "statement": { "type": "text", "required": true }
+      }
+    },
+    "milestone": {
+      "parents": ["mission"],
+      "contains": ["attempt"],
+      "workflow": "milestone",
+      "fields": { "lemma": { "type": "text", "required": true } }
+    },
+    "attempt": {
+      "parents": ["milestone"],
+      "workflow": "attempt",
+      "fields": { "proof": { "type": "string", "description": "Reference to the submitted proof file." } }
+    }
+  },
+  "workflows": {
+    "mission": {
+      "initial": "proposed",
+      "states": {
+        "proposed": { "owner": "captain" },
+        "open": { "owner": "orchestrator" },
+        "formalized": { "terminal": true },
+        "abandoned": { "terminal": true, "resolution": true }
+      },
+      "transitions": [
+        { "from": "proposed", "to": "open", "guards": [{ "guard": "approvals", "role": "captain", "min": 1 }] },
+        { "from": "open", "to": "formalized", "guards": ["children.terminal"] },
+        { "from": "*", "to": "abandoned" }
+      ]
+    },
+    "milestone": {
+      "initial": "open",
+      "states": {
+        "open": { "owner": "orchestrator" },
+        "proven": { "terminal": true },
+        "stalled": { "owner": "captain" }
+      },
+      "transitions": [
+        { "from": "open", "to": "proven", "on": { "event": "child.accepted" } },
+        { "from": "open", "to": "stalled", "on": { "after": "P14D" } },
+        { "from": "stalled", "to": "open" }
+      ]
+    },
+    "attempt": {
+      "initial": "proving",
+      "states": {
+        "proving": { "owner": "prover" },
+        "checking": { "owner": "lean" },
+        "accepted": { "terminal": true },
+        "rejected": { "terminal": true, "resolution": ["kernel-error", "sorry-present", "axiom-used", "gave-up"] }
+      },
+      "transitions": [
+        { "from": "proving", "to": "checking", "guards": [{ "guard": "fields.present", "fields": ["proof"] }] },
+        { "from": "checking", "to": "accepted", "on": { "event": "tool.passed" } },
+        { "from": "checking", "to": "proving", "on": { "event": "tool.failed" }, "limit": { "max": 5, "then": "rejected" } }
+      ]
+    }
+  }
+}
