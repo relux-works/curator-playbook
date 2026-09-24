@@ -48,3 +48,5 @@ Each demo takes a deliberately rough input and runs it through its playbook unde
 - Two sources of truth for roles during migration (`.roles`, `~/.roles`, installed skills): the PC2 lookup order must be explicit and logged.
 - PC1 grows by the delivery seams and the local hand-off that the early demos need; keep each seam a thin adapter over today's commands.
 - Schema churn before PC1: keep `schema_version` at 1 until the module ships, then version changes explicitly.
+
+**Next.** PC1 starts with the seam that loads the default playbook at a pinned revision and passes the goldens; the delivery seams and the local hand-off follow, and the three first demos start as soon as those land.
