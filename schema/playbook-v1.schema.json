@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/relux-works/curator-playbook/schema/playbook-v1.schema.json",
-  "title": "Playbook.json (draft v3.3, schema_version 1)",
-  "description": "Process configuration for agent systems. DRAFT v3.3, not normative until frozen; see spec/process-configuration.md. A playbook is data only: it never names a program, script, webhook or URL (spec section 8.5). The schema refuses URLs and shell syntax in hook arguments, schedule fields, event signers and package pins, and checks the arguments of the field, delivery.checks-passed and delivery.integration-evidence guards and of the delivery.integrate action; the per-hook argument schemas of the other provider hooks come with the provider modules (PC1). Keys starting with x- are reserved for extensions and ignored by the kernel.",
+  "title": "Playbook.json (draft v3.5, schema_version 1)",
+  "description": "Process configuration for agent systems. DRAFT v3.5, not normative until frozen; see spec/process-configuration.md. A playbook is data only: it never names a program, script, webhook or URL (spec section 8.5). The schema refuses URLs and shell syntax in hook arguments, schedule fields, event signers and package pins, and checks the arguments of the field, delivery.checks-passed and delivery.integration-evidence guards and of the delivery.integrate action; the per-hook argument schemas of the other provider hooks come with the provider modules (PC1). Keys starting with x- are reserved for extensions and ignored by the kernel.",
   "type": "object",
   "required": [
     "$schema",
@@ -1851,6 +1851,9 @@
                   "const": "audited"
                 },
                 {
+                  "const": "none"
+                },
+                {
                   "type": "array",
                   "items": {
                     "$ref": "#/$defs/qualified"
@@ -1859,10 +1862,11 @@
                   "minItems": 1
                 }
               ],
-              "description": "Skills agents may install into the project without a person: audited, any skill the Curator registry lists as audited, or the named skills. Absent: agents install nothing and a person installs or confirms the proposal. Skills from unknown sources are never covered (spec section 8.6)."
+              "description": "Skills agents may install into the project themselves: audited (the default), any skill the Curator registry lists as audited at the exact package identity being installed; a list of skill names; or none, where a person installs or confirms the proposal, or a delegation of installs covers it. An installation that changes the resolved configuration (a skill carrying a template the project resolves, or a new version of a bound tool provider) still waits for a person's confirmation. Skills from unknown sources are never covered (spec section 8.6).",
+              "default": "audited"
             }
           },
-          "description": "Project only: side effects a package may propose but only the project turns on: schedules, automatic spawns, tool invocations, relaxations, standing answers and skill installation by agents (spec sections 8.5, 8.6, 9). Authority-bearing: a change takes effect once a person confirms it (spec section 2.4)."
+          "description": "Project only: side effects a package may propose but only the project turns on: schedules, automatic spawns, tool invocations, relaxations, standing answers and skill installation by agents (spec sections 8.5, 8.6, 9). Like every change to the process, a change takes effect once a person confirms it (spec section 2.4)."
         },
         "signatures": {
           "type": "object",
@@ -2000,7 +2004,7 @@
                         "installs"
                       ]
                     },
-                    "description": "approvals of a named human role; transitions out of named human-owned states; relaxations, the approval of ask exceptions; installs, the installation of audited skills from the Curator registry into the project (spec sections 4.2, 8.6). No delegation covers a confirmation of authority-bearing sections, of the operator's files or of a skill from an unknown source."
+                    "description": "approvals of a named human role; transitions out of named human-owned states; relaxations, the approval of ask exceptions; installs, the installation of audited skills from the Curator registry into the project (spec sections 4.2, 8.6). No delegation covers a confirmation: of a change to the process, of a widening of the operator's files or of a skill from an unknown source."
                   },
                   "role": {
                     "$ref": "#/$defs/qualified",
@@ -2033,12 +2037,49 @@
                     "items": {
                       "$ref": "#/$defs/field-condition"
                     },
-                    "description": "Hard ceilings: field conditions every delegated act must meet; a granted delegation may only be stricter."
+                    "description": "Hard ceilings: field conditions every delegated act must meet; a granted delegation may only be stricter. Refused on a rule that covers installs only, which has no element whose fields a ceiling could read."
                   },
                   "self_approval": {
                     "type": "boolean",
                     "default": false,
-                    "description": "Lets a delegate approve an element that the delegate session, or a run it spawned, wrote a declared field of. Without it such a delegated approval does not count: no self-approval, as there is no self-review (spec section 4.2)."
+                    "description": "For approvals only: lets a delegate approve an element that the delegate session, or a run it spawned, wrote a declared field of. Without it such a delegated approval does not count: no self-approval, as there is no self-review (spec section 4.2)."
+                  },
+                  "relax": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "minProperties": 1,
+                    "properties": {
+                      "roles": {
+                        "type": "array",
+                        "minItems": 1,
+                        "uniqueItems": true,
+                        "items": {
+                          "$ref": "#/$defs/qualified"
+                        },
+                        "description": "The asking roles whose ask exceptions the rule covers."
+                      },
+                      "terms": {
+                        "type": "array",
+                        "minItems": 1,
+                        "uniqueItems": true,
+                        "items": {
+                          "enum": [
+                            "publisher",
+                            "family",
+                            "capabilities",
+                            "context_window",
+                            "reasoning",
+                            "local",
+                            "not_same_publisher_as",
+                            "pp",
+                            "tg",
+                            "ttft"
+                          ]
+                        },
+                        "description": "The requirement terms the rule may relax."
+                      }
+                    },
+                    "description": "For relaxations: limits the rule to the asking roles and the requirement terms it names; absent, every role and term (spec section 4.2)."
                   }
                 },
                 "allOf": [
@@ -2102,6 +2143,40 @@
                         }
                       }
                     }
+                  },
+                  "self_approval": {
+                    "properties": {
+                      "acts": {
+                        "contains": {
+                          "const": "approvals"
+                        }
+                      }
+                    },
+                    "description": "self_approval needs approvals among the acts."
+                  },
+                  "ceiling": {
+                    "properties": {
+                      "acts": {
+                        "contains": {
+                          "enum": [
+                            "approvals",
+                            "transitions",
+                            "relaxations"
+                          ]
+                        }
+                      }
+                    },
+                    "description": "A ceiling needs an act that concerns an element: approvals, transitions or relaxations."
+                  },
+                  "relax": {
+                    "properties": {
+                      "acts": {
+                        "contains": {
+                          "const": "relaxations"
+                        }
+                      }
+                    },
+                    "description": "relax needs relaxations among the acts."
                   }
                 }
               }
@@ -2128,7 +2203,7 @@
                         "installs"
                       ]
                     },
-                    "description": "approvals of a named human role; transitions out of named human-owned states; relaxations, the approval of ask exceptions; installs, the installation of audited skills from the Curator registry into the project (spec sections 4.2, 8.6). No delegation covers a confirmation of authority-bearing sections, of the operator's files or of a skill from an unknown source."
+                    "description": "approvals of a named human role; transitions out of named human-owned states; relaxations, the approval of ask exceptions; installs, the installation of audited skills from the Curator registry into the project (spec sections 4.2, 8.6). No delegation covers a confirmation: of a change to the process, of a widening of the operator's files or of a skill from an unknown source."
                   },
                   "role": {
                     "$ref": "#/$defs/qualified",
@@ -2226,7 +2301,11 @@
               "type": "string"
             }
           },
-          "description": "Project only and authority-bearing: which human acts a person may delegate to which orchestrator roles, under which hard ceilings. A person grants a delegation record within it, for acts their own principal could perform; delegated acts count as the grantor's only when they come from the grantor's own sessions or sessions the grant names, and only within the delegation and these ceilings; acts under delegation count as at most one principal toward a quorum; everything else waits for the person. Without this key nothing may be delegated (spec section 4.2)."
+          "description": "Project only: which human acts a person may delegate to which orchestrator roles, under which hard ceilings; like every change to the process, a change takes effect once a person confirms it (spec section 2.4). A person grants a delegation record within it, for acts their own principal could perform; delegated acts count as the grantor's only when they come from the grantor's own sessions or sessions the grant names, and only within the delegation and these ceilings; each delegated act counts as at most one principal toward a quorum, its grantor, and one delegate session counts once; everything else waits for the person. Without this key nothing may be delegated (spec section 4.2)."
+        },
+        "confirmers": {
+          "$ref": "#/$defs/identifier",
+          "description": "Project only: the group of the project's people map whose principals confirm changes to the process (spec section 2.4). Absent: the operator who created the project, whose principal the board records at creation. Before CM2 each machine runs the version its own confirmer confirmed; from CM2 a confirmation is a signed board act verified against the roster."
         },
         "delivery": {
           "type": "object",

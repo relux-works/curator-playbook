@@ -1,7 +1,7 @@
 {
   "$schema": "../../schema/playbook-v1.schema.json",
   "schema_version": 1,
-  "description": "A cafe project composing cafe-ops with bookkeeping. Only this file, read at its committed revision, binds people and event signer groups, enables the supplier tool, the weekly schedule and automatic spawns, sets the data policy, decides which manager acts may be delegated to the orchestrator and decides which human acts need signatures (the cafe demo follows the waggle amendment, CM2, and PC3). Principals follow waggle; the service kind svc: comes with the waggle amendment (spec section 17). Tools the project does not list in policy.enable.tools stay disabled.",
+  "description": "A cafe project composing cafe-ops with bookkeeping. Only this file, read at its committed revision, binds people and event signer groups, enables the supplier tool, the weekly schedule and automatic spawns, sets the data policy, decides which manager acts may be delegated to the orchestrator, names the cafe managers as the confirmers of process changes (spec section 2.4) and decides which human acts need signatures (the cafe demo follows the waggle amendment, CM2, and PC3). Principals follow waggle; the service kind svc: comes with the waggle amendment (spec section 17). Tools the project does not list in policy.enable.tools stay disabled.",
   "uses": ["cafe-ops", "bookkeeping"],
   "bind": { "cafe-ops.accounting-process": "bookkeeping", "cafe-ops.invoice": "bookkeeping.invoice" },
   "root": "cafe-orchestrator",
@@ -37,6 +37,7 @@
           "description": "A supplier problem and the receipt of goods always need a manager." }
       ]
     },
-    "data": { "billing": ["subscription", "local"] }
+    "data": { "billing": ["subscription", "local"] },
+    "confirmers": "cafe-managers"
   }
 }
