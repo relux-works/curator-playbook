@@ -2,7 +2,7 @@
   "$schema": "../schema/playbook-v1.schema.json",
   "schema_version": 1,
   "name": "dev-cycle",
-  "description": "Software delivery with a producer-reviewer loop, a refuter on specifications and decisions as board memory. Accepted leaves wait in accepted until their story integrates, so the delivery invariants hold (spec section 6.10). Template of the curator-playbook-dev-cycle package (skills/orchestrator/data/playbook.json).",
+  "description": "Software delivery with a producer-reviewer loop, a refuter on specifications and decisions as board memory. Change Request work is reviewed only after publication and waits in accepted until its story integrates; inline work without a Change Request is reviewed and finishes directly, so the delivery invariants hold (spec section 6.10). Template of the curator-playbook-dev-cycle package (skills/orchestrator/data/playbook.json).",
   "root": "orchestrator",
   "roles": {
     "orchestrator": { "skill": "dev-orchestrator", "capability": "orchestrator" },
@@ -16,15 +16,17 @@
       "capability": "reviewer",
       "needs": {
         "prefer": { "publisher": "anthropic" },
-        "require": { "not_same_publisher_as": "developer" },
+        "require": { "not_same_publisher_as": "developer", "reasoning": true },
         "on_unmet": "ask",
         "approval": { "scope": { "ancestor": "epic" }, "expires": "P30D" }
-      }
+      },
+      "description": "Independence is checked against the provenance of the developer run that produced the revision under review (spec section 9)."
     },
     "refuter": {
       "skill": "dev-refuter",
       "capability": "reviewer",
-      "description": "Tries to refute a draft against recorded decisions (spec section 12)."
+      "needs": { "require": { "reasoning": true, "context_window_min": 200000 } },
+      "description": "Tries to refute a draft against recorded decisions. Records the ledger verdicts with a refutation detail: accepted/no-contradiction, changes_requested/contradiction, stop_the_line/human-decision-needed (spec section 12)."
     },
     "researcher": { "skill": "dev-researcher", "capability": "analyst" },
     "designer": { "skill": "dev-designer", "capability": "producer" },
@@ -45,7 +47,12 @@
       "parents": ["story"],
       "workflow": "dev",
       "fields": {
-        "task_class": { "type": "enum", "values": ["code", "metadata", "docs", "research"], "default": "code" }
+        "task_class": {
+          "type": "enum",
+          "values": ["code", "metadata", "docs", "research"],
+          "default": "code",
+          "description": "Code work goes through a Change Request; metadata and research work is usually inline and takes the route guarded by delivery.cr-absent."
+        }
       },
       "estimates": [
         { "name": "complexity", "scale": "fibonacci" },
@@ -62,7 +69,7 @@
         "scope": { "type": "string", "description": "What the decision governs, for example a module, a file or the whole project." },
         "links": { "type": "list", "of": "string", "description": "Specifications, elements and commits it concerns." }
       },
-      "description": "Board memory the refuter checks drafts against."
+      "description": "Board memory the refuter checks drafts against. Its initial state is human-owned, so only a person may supersede an accepted decision (spec section 4.2)."
     }
   },
   "workflows": {
@@ -80,14 +87,15 @@
       },
       "transitions": [
         { "from": "open", "to": "hld" },
-        { "from": "hld", "to": "challenge", "guards": ["outcome.present"] },
-        { "from": "challenge", "to": "hld", "guards": [{ "guard": "verdict", "is": "contradiction" }] },
-        { "from": "challenge", "to": "decision-needed", "guards": [{ "guard": "verdict", "is": "human-decision-needed" }] },
-        { "from": "challenge", "to": "in-progress", "guards": [{ "guard": "verdict", "is": "no-contradiction" }] },
+        { "from": "hld", "to": "challenge", "guards": ["outcome.present"], "description": "The outcome must be recorded after the epic entered hld (evidence freshness, spec section 6.3)." },
+        { "from": "challenge", "to": "hld", "guards": [{ "guard": "verdict", "is": "changes_requested", "detail": "contradiction" }] },
+        { "from": "challenge", "to": "decision-needed", "guards": [{ "guard": "verdict", "is": "stop_the_line", "detail": "human-decision-needed" }] },
+        { "from": "challenge", "to": "in-progress", "guards": [{ "guard": "verdict", "is": "accepted", "detail": "no-contradiction" }] },
         { "from": "decision-needed", "to": "hld", "actions": [{ "action": "create", "type": "decision" }] },
         { "from": "in-progress", "to": "verification", "guards": ["children.terminal"] },
         { "from": "verification", "to": "done", "guards": [{ "guard": "verdict", "is": "accepted" }] },
-        { "from": "verification", "to": "in-progress", "guards": [{ "guard": "verdict", "is": "changes-requested" }] },
+        { "from": "verification", "to": "in-progress", "guards": [{ "guard": "verdict", "is": "changes_requested" }] },
+        { "from": "verification", "to": "decision-needed", "guards": [{ "guard": "verdict", "is": "stop_the_line" }] },
         { "from": "*", "to": "closed", "guards": ["children.terminal"] }
       ]
     },
@@ -105,11 +113,17 @@
         {
           "from": "in-progress",
           "to": "integrating",
-          "guards": [{ "guard": "children.in", "states": ["accepted", "done", "closed"] }],
-          "actions": ["delivery.integrate"]
+          "guards": [{ "guard": "children.in", "states": ["accepted", "approved", "done", "closed"] }],
+          "actions": ["delivery.integrate"],
+          "description": "The join lists every terminal state of every contained type (dev-task: done, closed; research-task: done, closed; design-task: approved, closed) plus the dev-task's waiting state accepted. A unit with no accepted revision integrates at once."
         },
         { "from": "integrating", "to": "done", "on": { "event": "delivery.integrated" } },
-        { "from": "integrating", "to": "in-progress", "on": { "event": "delivery.integration-failed" } },
+        {
+          "from": "integrating",
+          "to": "in-progress",
+          "on": { "event": "delivery.integration-failed" },
+          "description": "The delivery module emits integration-failed only with a rollback authorization (invariant 4)."
+        },
         { "from": "*", "to": "closed", "guards": ["children.terminal"] }
       ]
     },
@@ -122,9 +136,9 @@
         "accepted": {
           "owner": "orchestrator",
           "locked": true,
-          "description": "Accepted revision waiting for its story's integration; the leaf never reaches done before integration."
+          "description": "Accepted Change Request revision waiting for its story's integration; the leaf never reaches done before integration."
         },
-        "escalated": { "owner": "operator", "description": "The rework loop hit its limit; a person decides." },
+        "escalated": { "owner": "operator", "description": "The rework loop hit its limit, or the reviewer stopped the line; a person decides." },
         "done": { "terminal": true },
         "closed": { "terminal": true, "resolution": ["wont-do", "duplicate", "obsolete"] }
       },
@@ -133,18 +147,25 @@
         {
           "from": "development",
           "to": "review",
-          "guards": ["checklist.complete", "outcome.present", "delivery.cr-published"],
+          "guards": ["checklist.complete", "outcome.present", "delivery.review-ready"],
           "actions": ["spawn.owner"],
-          "description": "Review only after a published Change Request revision."
+          "description": "Stricter than invariant 3: work under a Change Request is reviewed only after its revision is published; inline work without one is reviewed directly."
         },
         {
           "from": "review",
           "to": "development",
-          "guards": [{ "guard": "verdict", "is": "changes-requested" }],
+          "guards": [{ "guard": "verdict", "is": "changes_requested" }],
           "limit": { "max": 3, "then": "escalated" },
-          "description": "Rework. The fourth rejection escalates instead."
+          "description": "Rework. The fourth request for changes escalates instead."
         },
+        { "from": "review", "to": "escalated", "guards": [{ "guard": "verdict", "is": "stop_the_line" }] },
         { "from": "review", "to": "accepted", "via": "accept_cr", "guards": ["delivery.cr-accepted"] },
+        {
+          "from": "review",
+          "to": "done",
+          "guards": [{ "guard": "verdict", "is": "accepted" }, "delivery.cr-absent", "delivery.commit-acknowledged"],
+          "description": "Inline work without a Change Request finishes on acceptance (invariant 1's inline route)."
+        },
         { "from": "accepted", "to": "done", "on": { "event": "delivery.integrated" }, "description": "Emitted for every element of the integration unit when the story lands." },
         { "from": "accepted", "to": "development", "on": { "event": "delivery.rework-started" }, "description": "A rollback of the accepted revision (landed rework, invalidation)." },
         { "from": "escalated", "to": "development" },
@@ -162,9 +183,9 @@
       },
       "transitions": [
         { "from": "draft", "to": "challenge", "guards": ["outcome.present"] },
-        { "from": "challenge", "to": "draft", "guards": [{ "guard": "verdict", "is": "contradiction" }] },
-        { "from": "challenge", "to": "decision-needed", "guards": [{ "guard": "verdict", "is": "human-decision-needed" }] },
-        { "from": "challenge", "to": "approved", "guards": [{ "guard": "verdict", "is": "no-contradiction" }] },
+        { "from": "challenge", "to": "draft", "guards": [{ "guard": "verdict", "is": "changes_requested", "detail": "contradiction" }] },
+        { "from": "challenge", "to": "decision-needed", "guards": [{ "guard": "verdict", "is": "stop_the_line", "detail": "human-decision-needed" }] },
+        { "from": "challenge", "to": "approved", "guards": [{ "guard": "verdict", "is": "accepted", "detail": "no-contradiction" }] },
         { "from": "decision-needed", "to": "draft", "actions": [{ "action": "create", "type": "decision" }] },
         { "from": "*", "to": "closed" }
       ]
@@ -175,14 +196,17 @@
         "open": { "owner": "orchestrator", "requires": ["description"] },
         "researching": { "owner": "researcher" },
         "review": { "owner": "reviewer" },
+        "escalated": { "owner": "operator", "description": "The reviewer stopped the line; a person decides." },
         "done": { "terminal": true },
         "closed": { "terminal": true, "resolution": true }
       },
       "transitions": [
         { "from": "open", "to": "researching", "actions": ["spawn.owner"] },
         { "from": "researching", "to": "review", "guards": ["outcome.present"] },
-        { "from": "review", "to": "researching", "guards": [{ "guard": "verdict", "is": "changes-requested" }] },
+        { "from": "review", "to": "researching", "guards": [{ "guard": "verdict", "is": "changes_requested" }] },
+        { "from": "review", "to": "escalated", "guards": [{ "guard": "verdict", "is": "stop_the_line" }] },
         { "from": "review", "to": "done", "guards": [{ "guard": "verdict", "is": "accepted" }] },
+        { "from": "escalated", "to": "researching" },
         { "from": "*", "to": "closed" }
       ]
     },
@@ -197,7 +221,13 @@
       "transitions": [
         { "from": "proposed", "to": "accepted" },
         { "from": "proposed", "to": "rejected" },
-        { "from": "accepted", "to": "superseded", "reopen": true, "guards": [{ "guard": "fields.present", "fields": ["links"] }] }
+        {
+          "from": "accepted",
+          "to": "superseded",
+          "reopen": true,
+          "guards": [{ "guard": "fields.present", "fields": ["links"] }],
+          "description": "A reopen from a terminal state: only a human actor, because proposed is human-owned."
+        }
       ]
     }
   },

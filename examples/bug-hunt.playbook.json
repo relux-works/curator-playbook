@@ -25,7 +25,7 @@
         "on_unmet": "ask",
         "approval": { "scope": { "ancestor": "hunt" }, "expires": "P7D" }
       },
-      "description": "Independence cannot be restored by more reviews from the same publisher, so an unmet requirement asks a person (degrade is refused for independence, spec section 9)."
+      "description": "Records accepted (a real defect), changes_requested (the reproduction does not convince yet) or rejected (not a defect; no rework). Independence cannot be restored by more reviews from the same publisher, so an unmet requirement asks a person (degrade is refused for independence, spec section 9)."
     },
     "fixers": {
       "kind": "process",
@@ -89,7 +89,7 @@
         {
           "from": "verifying",
           "to": "reproducing",
-          "guards": [{ "guard": "verdict", "is": "changes-requested" }],
+          "guards": [{ "guard": "verdict", "is": "changes_requested" }],
           "limit": { "max": 2, "then": "rejected", "resolution": "not-reproducible" }
         },
         { "from": "verifying", "to": "rejected", "guards": [{ "guard": "verdict", "is": "rejected" }] },

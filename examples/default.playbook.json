@@ -101,12 +101,12 @@
           "guards": [
             "blockers.clear",
             { "guard": "assignee", "manual_only": true },
-            { "guard": "checklist.complete", "applies_to": { "actor": "run", "except_capability": ["reviewer"] } },
-            { "guard": "outcome.present", "applies_to": { "actor": "run", "except_capability": ["reviewer"] } }
+            { "guard": "checklist.complete", "applies_to": { "actor": "run", "own_element": true, "role_ends_in": "to-review" } },
+            { "guard": "outcome.present", "applies_to": { "actor": "run", "own_element": true, "role_ends_in": "to-review" } }
           ],
-          "description": "Every spawned run whose role ends in to-review, except reviewers, must hand off with its checklist complete and <ID>_results.md stored (tools/board-cli/cmd/producer_handoff_guard.go:71; pkg/board/handoff.go:122; errors.go:26-44)."
+          "description": "A spawned run whose role ends in to-review must hand off its own element with the checklist complete and <ID>_results.md stored; reviewers (empty end status) and orchestrator-archetype runs (no lifecycle statuses) are not gated (tools/board-cli/cmd/producer_handoff_guard.go:71-78; pkg/board/handoff.go:122; errors.go:26-44; goal_role.go:25-33)."
         },
-        { "from": "*", "to": "reviewing", "guards": ["blockers.clear"] },
+        { "from": "*", "to": "reviewing", "guards": ["blockers.clear"], "description": "Inline review of work without a Change Request is admitted, as today (consistency.go:115-122)." },
         {
           "from": "*",
           "to": "integrating",
@@ -118,19 +118,26 @@
           "from": "reviewing",
           "to": "to-dev",
           "via": "reject_cr",
-          "actions": ["record.verdict"],
+          "actions": [{ "action": "record.verdict", "is": "changes_requested" }],
           "description": "The rejection command routes to to-dev (tools/board-cli/cmd/change_request.go:753, 825, 856); a manual move to to-dev stays possible through * -> to-dev."
+        },
+        {
+          "from": "reviewing",
+          "to": "blocked",
+          "guards": [{ "guard": "outcome.present", "applies_to": { "actor": "run", "own_element": true } }],
+          "actions": [{ "action": "record.verdict", "is": "stop_the_line" }],
+          "description": "Stop-The-Line: the reviewer parks its element at blocked with a new task-scoped evidence packet, and the goal ledger records stop_the_line; the revision stays as reviewed (tools/board-cli/internal/spawnruntime/goal_acceptance.go:51-96, 255-256; changerequest.go:403-405). Shadows * -> blocked for this pair; people and the orchestrator still park elements freely."
         },
         {
           "from": "integrating",
           "to": "done",
           "via": "integrate",
-          "guards": ["delivery.integration-evidence"],
+          "guards": ["blockers.clear", "delivery.integration-evidence"],
           "actions": ["delivery.close-checkpointed-siblings"],
-          "description": "IntegrationAuthorized (consistency.go:169-172)."
+          "description": "IntegrationAuthorized (consistency.go:169-172); every status change also passes the blockers check (consistency.go:176; validation.go:46-58)."
         },
-        { "from": "integrating", "to": "done", "via": "integrate_external", "guards": ["delivery.external-integration-evidence"], "description": "ExternalIntegrationAuthorized." },
-        { "from": "integrating", "to": "done", "via": "restore_done", "guards": ["delivery.restore-authorized"], "description": "IntegrationRestoreAuthorized (internal/integration/restore_done.go:85, landed_apply.go:93)." },
+        { "from": "integrating", "to": "done", "via": "integrate_external", "guards": ["blockers.clear", "delivery.external-integration-evidence"], "description": "ExternalIntegrationAuthorized." },
+        { "from": "integrating", "to": "done", "via": "restore_done", "guards": ["blockers.clear", "delivery.restore-authorized"], "description": "IntegrationRestoreAuthorized (internal/integration/restore_done.go:85, landed_apply.go:93)." },
         { "from": "integrating", "to": "to-dev", "via": "landed_rework", "guards": ["delivery.rollback-authorized"], "description": "AcceptanceRollbackAuthorized (internal/integration/start_landed_rework.go:67)." },
         { "from": "integrating", "to": "to-dev", "via": "invalidate", "guards": ["delivery.rollback-authorized"], "description": "AcceptanceRollbackAuthorized (internal/integration/invalidate.go:117-118)." },
         { "from": "integrating", "to": "to-dev", "via": "converge", "guards": ["delivery.rollback-authorized"], "description": "AcceptanceRollbackAuthorized (internal/integration/converge.go:426-427)." },
@@ -152,7 +159,7 @@
     },
     "container": {
       "initial": "backlog",
-      "description": "Epics and stories. Status aggregates from children (escalation.go:73, 140): aggregation reopens done and closed containers when a child becomes active (escalation.go:151-162, 198-200) and moves them into and out of integrating (escalation.go:65-68). Aggregated moves are not transitions (spec section 5.1). Direct statuses are admitted too; only the close is gated (validation.go:34-43), and blocked containers are left alone by aggregation (escalation.go:151).",
+      "description": "Epics and stories. Status aggregates from children (escalation.go:73, 140): aggregation reopens done and closed containers when a child becomes active (escalation.go:151-162, 198-200) and moves them into and out of integrating (escalation.go:65-68). Aggregated moves are not transitions (spec section 5.1): they ignore terminal, locked and declared guards but obey the blockers check, so a container with active blockers is not aggregated forward (escalation.go:163-172; validation.go:46-58), and a blocked container is left alone (escalation.go:151). Direct statuses are admitted too; only the close is gated (validation.go:34-43).",
       "states": {
         "backlog": { "owner": "orchestrator" },
         "analysis": { "owner": "orchestrator" },

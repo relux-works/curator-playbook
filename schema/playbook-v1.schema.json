@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/relux-works/curator-playbook/schema/playbook-v1.schema.json",
-  "title": "Playbook.json (draft v2, schema_version 1)",
-  "description": "Process configuration for agent systems. DRAFT v2, not normative; see spec/process-configuration.md. A playbook is data only: it never names a program, script, webhook or URL (spec section 8.5). Keys starting with x- are reserved for extensions and ignored by the kernel.",
+  "title": "Playbook.json (draft v2.1, schema_version 1)",
+  "description": "Process configuration for agent systems. DRAFT v2.1, not normative; see spec/process-configuration.md. A playbook is data only: it never names a program, script, webhook or URL (spec section 8.5). The schema refuses URLs and shell syntax in hook arguments, schedule fields, event signers and package pins, but only the per-hook argument schemas of the provider modules (PC1) make hook arguments exact. Keys starting with x- are reserved for extensions and ignored by the kernel.",
   "type": "object",
   "required": [
     "$schema",
@@ -27,7 +27,7 @@
       "type": "string"
     },
     "extends": {
-      "description": "Single parent playbook (spec section 7.1). The object form pins the parent package identity (repository and tag), which the resolver checks against the installed lock.",
+      "description": "Single parent playbook (spec section 7.1). The object form pins the parent by its Curator package identity, which the resolver compares with the lock entry of the skill that carries the template (spec section 8.2).",
       "oneOf": [
         {
           "$ref": "#/$defs/identifier"
@@ -43,8 +43,7 @@
               "$ref": "#/$defs/identifier"
             },
             "package": {
-              "type": "string",
-              "description": "Package identity, for example relux-works/curator-playbook-dev-cycle@v1.0.0."
+              "$ref": "#/$defs/package-identity"
             }
           }
         }
@@ -94,17 +93,25 @@
     },
     "tools": {
       "type": "object",
-      "description": "Tool names bound to commands exported by installed skills (spec section 8.5). A published template may bind only to skills of its own package; every other binding comes from the project file.",
+      "description": "Tool names bound to commands exported by skills installed through Curator (spec section 8.5). A template's binding is admitted only when its orchestrator skill's manifest declares the provider in runtime mode narrowed to that command. A project may rebind a tool, or disable it with null. A bound tool runs only when the project enables it (policy.enable.tools).",
       "propertyNames": {
         "$ref": "#/$defs/hook-name"
       },
       "additionalProperties": {
-        "$ref": "#/$defs/tool-binding"
+        "oneOf": [
+          {
+            "$ref": "#/$defs/tool-binding"
+          },
+          {
+            "type": "null",
+            "description": "Project only: the tool is disabled; states it owns cannot be entered."
+          }
+        ]
       }
     },
     "people": {
       "type": "object",
-      "description": "Human groups named by human roles (who), mapped to waggle roster principals (spec section 4.2). Defined by the project file.",
+      "description": "Human groups named by human roles (who), mapped to waggle operator principals (op:) only (spec section 4.2). Project only; read from the committed file at the pinned revision. Patterns are counted against the roster at the same revision.",
       "propertyNames": {
         "$ref": "#/$defs/identifier"
       },
@@ -112,9 +119,19 @@
         "$ref": "#/$defs/people-group"
       }
     },
+    "services": {
+      "type": "object",
+      "description": "Project only: signer groups named by event declarations (signed_by), mapped to the service principals of the bridges allowed to sign those events (spec section 6.9). The service principal kind is part of the pending waggle amendment (spec section 17, H7).",
+      "propertyNames": {
+        "$ref": "#/$defs/identifier"
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/service-group"
+      }
+    },
     "events": {
       "type": "object",
-      "description": "External events this playbook reacts to, with the principals allowed to sign them (spec section 6.9).",
+      "description": "External events this playbook reacts to. Each names a signer group; only the project binds the group to principals (services), so package bytes never choose who may sign (spec section 6.9).",
       "propertyNames": {
         "$ref": "#/$defs/hook-name"
       },
@@ -175,6 +192,165 @@
       "pattern": "^[a-z][a-z0-9_.-]*$",
       "maxLength": 96
     },
+    "relative-path": {
+      "type": "string",
+      "pattern": "^(\\.|[A-Za-z0-9._-]+(/[A-Za-z0-9._-]+)*)$",
+      "not": {
+        "pattern": "(^|/)\\.\\.(/|$)"
+      },
+      "maxLength": 512,
+      "description": "A portable relative path inside a package; no scheme, no parent segments."
+    },
+    "argument-value": {
+      "description": "A hook, schedule or field argument: a number, a boolean, null, a short string without a URL scheme or shell syntax, or a list or map of those. Per-hook argument schemas come with the provider modules (PC1).",
+      "anyOf": [
+        {
+          "type": [
+            "number",
+            "boolean",
+            "null"
+          ]
+        },
+        {
+          "type": "string",
+          "maxLength": 256,
+          "not": {
+            "pattern": "://|[;|&`<>\\\\]|\\$\\(|\\$\\{"
+          }
+        },
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/argument-value"
+          }
+        },
+        {
+          "type": "object",
+          "propertyNames": {
+            "$ref": "#/$defs/argument-key"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/argument-value"
+          }
+        }
+      ]
+    },
+    "argument-key": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_.-]*$",
+      "maxLength": 64,
+      "not": {
+        "enum": [
+          "exec",
+          "cmd",
+          "command",
+          "run",
+          "script",
+          "shell",
+          "program",
+          "argv",
+          "env",
+          "url",
+          "uri",
+          "webhook",
+          "endpoint",
+          "path"
+        ]
+      },
+      "description": "Argument names; names that would select a program, an environment or an endpoint are refused."
+    },
+    "package-identity": {
+      "description": "A Curator package identity (curator-spec protocol/skillfile-sources.md): a network git snapshot, a local snapshot digest, or a configured git source.",
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "repository",
+            "commit",
+            "directory"
+          ],
+          "properties": {
+            "kind": {
+              "const": "network-git"
+            },
+            "repository": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9.-]*(:[0-9]+)?(/[A-Za-z0-9._~-]+)+$",
+              "maxLength": 4096,
+              "description": "Canonical host/path identity, without a scheme (curator-spec core section 6.1)."
+            },
+            "commit": {
+              "$ref": "#/$defs/git-commit"
+            },
+            "directory": {
+              "$ref": "#/$defs/relative-path"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "snapshot"
+          ],
+          "properties": {
+            "kind": {
+              "const": "local-snapshot"
+            },
+            "snapshot": {
+              "type": "string",
+              "pattern": "^sha256:[0-9a-f]{64}$"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "source",
+            "commit"
+          ],
+          "properties": {
+            "kind": {
+              "const": "configured-git"
+            },
+            "source": {
+              "$ref": "#/$defs/relative-path"
+            },
+            "commit": {
+              "$ref": "#/$defs/git-commit"
+            },
+            "directory": {
+              "const": "."
+            }
+          }
+        }
+      ]
+    },
+    "git-commit": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "object_format",
+        "hex"
+      ],
+      "properties": {
+        "object_format": {
+          "enum": [
+            "sha1",
+            "sha256"
+          ]
+        },
+        "hex": {
+          "type": "string",
+          "pattern": "^([0-9a-f]{40}|[0-9a-f]{64})$"
+        }
+      }
+    },
     "duration": {
       "type": "string",
       "pattern": "^P(?!$)(\\d+Y)?(\\d+M)?(\\d+W)?(\\d+D)?(T(?=\\d)(\\d+H)?(\\d+M)?(\\d+S)?)?$",
@@ -229,6 +405,27 @@
             }
           },
           "description": "Contract the bound type must satisfy: named estimate dimensions, fields, terminal states."
+        },
+        "writes": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "estimates": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/identifier"
+              },
+              "uniqueItems": true
+            },
+            "fields": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/field-name"
+              },
+              "uniqueItems": true
+            }
+          },
+          "description": "Fields this playbook's orchestrator writes on the bound type. Binding the slot grants a field-scoped lease on exactly these fields; every other write into another orchestrator's scope goes through that orchestrator (spec section 7.2)."
         }
       }
     },
@@ -238,7 +435,7 @@
       "patternProperties": {
         "^x-": {}
       },
-      "description": "A requirement or preference stated in portable terms; never a concrete model id, runtime or effort (effort lives in the operator file; a project may set a floor in policy.effort_floor).",
+      "description": "A requirement or preference stated in portable terms, agent-selection S1's vocabulary; never a concrete model id, runtime or effort (effort lives in the operator file; a project may set a floor in policy.effort_floor).",
       "properties": {
         "publisher": {
           "$ref": "#/$defs/string-or-list"
@@ -246,19 +443,29 @@
         "family": {
           "$ref": "#/$defs/string-or-list"
         },
-        "capability": {
+        "capabilities": {
           "type": "array",
           "items": {
-            "type": "string"
+            "$ref": "#/$defs/hook-name"
           },
-          "uniqueItems": true
+          "uniqueItems": true,
+          "description": "Model capabilities from the module registry's vocabulary, for example tool-use."
+        },
+        "context_window_min": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Minimum context window in tokens."
+        },
+        "reasoning": {
+          "type": "boolean",
+          "description": "true: the model row accepts a reasoning effort (agent-selection spells the hard form reasoning: required)."
         },
         "local": {
           "type": "boolean"
         },
         "not_same_publisher_as": {
-          "$ref": "#/$defs/identifier",
-          "description": "Independence: differ from the publisher bound to that role alias."
+          "$ref": "#/$defs/qualified",
+          "description": "Independence: differ from the publisher recorded in the provenance of the run of that role that produced the evidence under review (spec section 9)."
         }
       }
     },
@@ -281,6 +488,10 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
+        "class": {
+          "$ref": "#/$defs/identifier",
+          "description": "Requirement class (agent-selection section 3); defaults to the role's workload class."
+        },
         "require": {
           "$ref": "#/$defs/need"
         },
@@ -337,7 +548,7 @@
         },
         "degraded_state": {
           "$ref": "#/$defs/identifier",
-          "description": "degrade: the statically declared review state the degraded path goes through (spec section 9)."
+          "description": "degrade: the statically declared review state the degraded path goes through; the next exit from the state the degraded run worked in is redirected here (spec section 9)."
         }
       }
     },
@@ -800,7 +1011,7 @@
         },
         "derived_status": {
           "type": "boolean",
-          "description": "Status aggregates from children by the kernel; aggregated moves are not transitions (spec section 5.1)."
+          "description": "Status aggregates from children by the kernel; aggregated moves are not transitions, but they obey the kernel's blockers check (spec section 5.1)."
         },
         "fields": {
           "type": "object",
@@ -849,7 +1060,7 @@
               "type": "string"
             }
           },
-          "description": "Membership by link, not containment: the hierarchy stays a tree (spec section 7.2)."
+          "description": "Membership by link, not containment: the hierarchy stays a tree. The links are stored on this container, inside its orchestrator's scope (spec section 7.2)."
         }
       }
     },
@@ -944,7 +1155,8 @@
       },
       "properties": {
         "owner": {
-          "$ref": "#/$defs/owner"
+          "$ref": "#/$defs/owner",
+          "description": "Required on every non-terminal state of the resolved workflow (the validator checks the resolved result, so an extending file may override a state partially)."
         },
         "helpers": {
           "type": "array",
@@ -1035,6 +1247,20 @@
         }
       ]
     },
+    "risk": {
+      "anyOf": [
+        {
+          "enum": [
+            "spending",
+            "halt"
+          ]
+        },
+        {
+          "type": "string",
+          "pattern": "^x-[a-z0-9-]+$"
+        }
+      ]
+    },
     "transition": {
       "type": "object",
       "additionalProperties": false,
@@ -1069,7 +1295,7 @@
         },
         "via": {
           "$ref": "#/$defs/hook-name",
-          "description": "The one command that performs this from-to pair, for example accept_cr; it does not restrict other pairs into the same state."
+          "description": "The one command that performs this (from, to, via) triple, for example accept_cr; it does not restrict other triples into the same state."
         },
         "guards": {
           "type": "array",
@@ -1082,6 +1308,22 @@
           "items": {
             "$ref": "#/$defs/action-hook"
           }
+        },
+        "risk": {
+          "description": "Marks a transition whose firing policy.signatures may require to be signed: spending (it commits money) or halt (it stops work that is under way) (spec section 4.2).",
+          "oneOf": [
+            {
+              "$ref": "#/$defs/risk"
+            },
+            {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/risk"
+              },
+              "minItems": 1,
+              "uniqueItems": true
+            }
+          ]
         },
         "on": {
           "$ref": "#/$defs/trigger"
@@ -1110,11 +1352,11 @@
         },
         "reopen": {
           "type": "boolean",
-          "description": "Required for a transition that leaves a terminal state."
+          "description": "Required for a transition that leaves a terminal state. A human actor may fire it; the root orchestrator only when the type's initial state is not human-owned (spec section 4.2)."
         },
         "remove": {
           "type": "boolean",
-          "description": "In a file that extends a parent: delete the inherited transition with the same from and to."
+          "description": "In a file that extends a parent: delete the inherited transition with the same (from, to, via) triple."
         },
         "description": {
           "type": "string"
@@ -1187,7 +1429,9 @@
           "$ref": "#/$defs/duration"
         },
         "cron": {
-          "type": "string"
+          "type": "string",
+          "pattern": "^[0-9A-Za-z*/,?#-]+( [0-9A-Za-z*/,?#-]+){4,5}$",
+          "description": "A five- or six-field cron expression."
         },
         "create": {
           "type": "object",
@@ -1200,13 +1444,26 @@
               "$ref": "#/$defs/qualified"
             },
             "title": {
-              "type": "string"
+              "type": "string",
+              "maxLength": 256,
+              "not": {
+                "pattern": "://"
+              }
             },
             "parent": {
-              "type": "string"
+              "type": "string",
+              "pattern": "^[A-Za-z][A-Za-z0-9-]*$",
+              "maxLength": 96,
+              "description": "An element id."
             },
             "fields": {
-              "type": "object"
+              "type": "object",
+              "propertyNames": {
+                "$ref": "#/$defs/field-name"
+              },
+              "additionalProperties": {
+                "$ref": "#/$defs/argument-value"
+              }
             }
           }
         },
@@ -1291,6 +1548,41 @@
             }
           }
         },
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "publishers": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "deny": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "uniqueItems": true
+                }
+              }
+            },
+            "billing": {
+              "type": "array",
+              "items": {
+                "enum": [
+                  "subscription",
+                  "local",
+                  "metered"
+                ]
+              },
+              "uniqueItems": true,
+              "description": "Billing classes the project admits. Absent: subscription and local."
+            },
+            "local_only": {
+              "type": "boolean"
+            }
+          },
+          "description": "Project only: the project's data policy (agent-selection section 4): which publishers and billing classes may process this project's data (spec section 9)."
+        },
         "goals": {
           "type": "object",
           "additionalProperties": false,
@@ -1328,7 +1620,7 @@
               "max"
             ]
           },
-          "description": "Project only: the lowest reasoning effort a role may run at; the operator file chooses within it."
+          "description": "Project only: per role, the lowest reasoning effort a run may use. For a model row the effective floor is the lowest value the row admits at or above it; a row without reasoning effort satisfies it vacuously; a row with nothing at or above it is unmet and the role's on_unmet applies (spec section 9)."
         },
         "enable": {
           "type": "object",
@@ -1354,9 +1646,24 @@
             "relaxations": {
               "type": "boolean",
               "description": "Accept the fallback and degrade policies the admitted playbooks propose."
+            },
+            "tools": {
+              "oneOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/hook-name"
+                  },
+                  "uniqueItems": true
+                }
+              ],
+              "description": "Tools whose commands the kernel may run: all bound tools, or the named ones (spec section 8.5)."
             }
           },
-          "description": "Project only: side effects a package may propose but only the project turns on (spec section 8.5)."
+          "description": "Project only: side effects a package may propose but only the project turns on: schedules, automatic spawns, tool invocations, relaxations (spec section 8.5)."
         },
         "signatures": {
           "type": "object",
@@ -1370,9 +1677,10 @@
                   {
                     "enum": [
                       "approvals",
+                      "relaxations",
                       "spending",
                       "halts",
-                      "relaxations",
+                      "overrides",
                       "human-transitions"
                     ]
                   },
@@ -1389,9 +1697,16 @@
                 "hardware-bound",
                 "attested"
               ]
+            },
+            "user_verified": {
+              "enum": [
+                "required",
+                "if-supported"
+              ],
+              "description": "Whether each required signature must carry the user-verified flag (a FIDO2 signature with user verification, waggle section 4.4). Proposed default: required for approvals, relaxations and halts (spec section 4.2)."
             }
           },
-          "description": "Which human acts need a waggle approver signature, and at what key assurance (spec section 4.2)."
+          "description": "Project only: which human acts need a waggle approver signature, at what key assurance, and whether the signature must show user verification (spec section 4.2). Signed board acts need the pending waggle amendment (spec section 17, H7)."
         },
         "delivery": {
           "type": "object",
@@ -1457,11 +1772,15 @@
       "properties": {
         "skill": {
           "$ref": "#/$defs/identifier",
-          "description": "Installed skill that exports the command (audited through Curator)."
+          "description": "The providing skill, installed through Curator as a runtime dependency of the orchestrator skill."
         },
         "command": {
           "$ref": "#/$defs/identifier",
-          "description": "A command the skill manifest exports; never a free-form program string."
+          "description": "A command the provider's manifest exports. Command names are global shims, so published packages prefix them (cafe-send-order); never a free-form program string."
+        },
+        "timeout": {
+          "$ref": "#/$defs/duration",
+          "description": "Invocation deadline; expiry fires tool.failed (default PT10M, spec section 6.11)."
         },
         "description": {
           "type": "string"
@@ -1481,9 +1800,31 @@
           "uniqueItems": true,
           "items": {
             "type": "string",
-            "pattern": "^[a-z][a-z0-9-]*:[^\\s@]+@[^\\s@]+$"
+            "pattern": "^op:[^\\s@]+@[^\\s@]+$"
           },
-          "description": "waggle roster principals or principal patterns, for example op:alice@acme or op:*@acme."
+          "description": "waggle operator principals or patterns, for example op:alice@acme or op:*@acme."
+        },
+        "description": {
+          "type": "string"
+        }
+      }
+    },
+    "service-group": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "principals"
+      ],
+      "properties": {
+        "principals": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^svc:[a-z0-9][a-z0-9-]*@[^\\s@]+$"
+          },
+          "description": "Service principals of event bridges, for example svc:payment-bridge@acme. The kind is proposed in the pending waggle amendment."
         },
         "description": {
           "type": "string"
@@ -1493,14 +1834,13 @@
     "event-declaration": {
       "type": "object",
       "additionalProperties": false,
+      "required": [
+        "signed_by"
+      ],
       "properties": {
-        "signers": {
-          "type": "array",
-          "uniqueItems": true,
-          "items": {
-            "type": "string"
-          },
-          "description": "Principals (or tool keys) whose signature makes a posted event valid."
+        "signed_by": {
+          "$ref": "#/$defs/identifier",
+          "description": "The signer group whose principals may sign this event; the project binds it in services."
         },
         "description": {
           "type": "string"
@@ -1544,10 +1884,24 @@
                     "type": "string"
                   },
                   "uniqueItems": true
+                },
+                "own_element": {
+                  "type": "boolean",
+                  "description": "Only when a run acts on the element it was spawned for."
+                },
+                "role_ends_in": {
+                  "$ref": "#/$defs/identifier",
+                  "description": "Only for runs whose role's end state is this state (today's end_status of the role definition)."
                 }
               },
-              "description": "Limit the guard to one actor class (spec section 4.2)."
+              "description": "Limit the guard to one actor class or run shape (spec sections 4.2, 6.2)."
             }
+          },
+          "propertyNames": {
+            "$ref": "#/$defs/argument-key"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/argument-value"
           }
         }
       ]
@@ -1572,6 +1926,12 @@
             "action": {
               "$ref": "#/$defs/hook-name"
             }
+          },
+          "propertyNames": {
+            "$ref": "#/$defs/argument-key"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/argument-value"
           }
         }
       ]

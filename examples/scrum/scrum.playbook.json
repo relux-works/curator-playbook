@@ -6,8 +6,9 @@
   "root": "scrum-orchestrator",
   "slots": {
     "work-item": {
-      "description": "Backlog item planned into sprints.",
-      "requires": { "estimates": ["complexity", "duration"], "terminal": ["done", "closed"] }
+      "description": "Backlog item planned into sprints. It lives in the delivery process's hierarchy; binding this slot delegates to the scrum orchestrator exactly the two estimate fields it writes during grooming.",
+      "requires": { "estimates": ["complexity", "duration"], "terminal": ["done", "closed"] },
+      "writes": { "estimates": ["complexity", "duration"] }
     },
     "delivery": {
       "kind": "process",
@@ -33,7 +34,7 @@
     "sprint": {
       "parents": ["milestone"],
       "contains": ["grooming", "planning", "retro"],
-      "members": { "type": "work-item", "max_per_item": 1, "description": "An item belongs to at most one open sprint; carrying it over relinks it." },
+      "members": { "type": "work-item", "max_per_item": 1, "description": "Links stored on the sprint, inside the scrum orchestrator's scope; an item belongs to at most one open sprint, and carrying it over relinks it." },
       "workflow": "sprint",
       "fields": { "velocity": { "type": "number", "description": "Complexity points accepted, written by the retro." } }
     },

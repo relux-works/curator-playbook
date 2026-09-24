@@ -1,6 +1,6 @@
 # Track: process configuration
 
-Status: **DRAFT v2**, 2026-09-24. Specification: [`process-configuration.md`](process-configuration.md). Roadmap: `wiki/roadmap/ecosystem-roadmap.md`, process-configuration line (it replaces the earlier playbooks track PB0–PB4 of `skill-project-management/.specs/drafts/playbooks-track.md`). First refuter run: [`../reviews/2026-09-24-refuter-v0.md`](../reviews/2026-09-24-refuter-v0.md).
+Status: **DRAFT v2.1**, 2026-09-24. Specification: [`process-configuration.md`](process-configuration.md). Roadmap: `wiki/roadmap/ecosystem-roadmap.md`, process-configuration line (it replaces the earlier playbooks track PB0–PB4 of `skill-project-management/.specs/drafts/playbooks-track.md`). Refuter runs: [`../reviews/2026-09-24-refuter-v0.md`](../reviews/2026-09-24-refuter-v0.md) on v1 and [`../reviews/2026-09-24-refuter-v1.md`](../reviews/2026-09-24-refuter-v1.md) on v2.
 
 ## Why
 
@@ -10,37 +10,41 @@ The board's structure — element types, statuses, the producer–reviewer loop,
 
 | # | Delivers | Done when |
 | --- | --- | --- |
-| PC0 | draft specification, JSON Schema, examples (this repository); the refuter's first run on v1 and this v2 revision | merged as a draft; every refuter finding is resolved or listed as open (spec §18) |
-| PC1 | the module: schema, parser, resolver for `extends`, `uses` and slots, `playbook validate` (library and CLI, portable and machine checks); a thin seam in task-board that loads `default.playbook.json`; new types from `Playbook.json` run on the generic engine; a structured `assignment.role` | task-board behaves identically on the default playbook, or every difference is documented and accepted; a new type declared in `Playbook.json` runs end to end |
-| Demos | right after PC1: `dev-cycle`, `bug-hunt` → `dev-cycle`, `scrum` over `dev-cycle`; the cafe once `task-board tick` and signed events exist (PC3) | each demo runs from a poorly specified input to a terminal state under its orchestrator |
-| PC2 | role skills; the `curator-playbook-dev-cycle` package (orchestrator plus role skills, template in the orchestrator's data) on Skillfile schema 2; task-board resolves roles from the project overlay `.roles`, then installed role skills, then `~/.roles` read-only for one release with a warning; `setup.sh` stops copying `~/.roles` | a clean machine gets every role from one Skillfile selector; this realizes roadmap milestone M1 |
-| PC3 | delivery-module seams (Change Requests, worktrees, integration, validation as guards, actions and invariants); `task-board tick`; signed events and approvals; hand-off through waggle offers | the delivery invariants hold on every delivery workflow; the cafe demo runs its SLA, schedule and payment event |
+| PC0 | draft specification, JSON Schema, examples (this repository); the refuter's first run on v1 and second run on v2, answered by v2 and v2.1 | merged as a draft; every finding of both runs is resolved or listed as open (spec §18, §19), and each decision that belongs to a person has a proposed default and an open question (spec §17) |
+| PC1 | the module: schema, parser, resolver for `extends`, `uses` and slots, `playbook validate` (library and CLI, portable and machine checks); a thin seam in task-board that loads the project file at its pinned revision and `default.playbook.json`; new types from `Playbook.json` on the generic engine; a structured `assignment.role`; the constructor-ready schema; the minimal delivery seams over today's commands and the local hand-off on one board, which the demos need (spec §15) | task-board behaves identically on the default playbook, or every difference is documented and accepted; a new type declared in `Playbook.json` runs end to end; the three first demos can start |
+| Demos | right after PC1 *(decided 2026-09-24)*: `dev-cycle`, `bug-hunt` → `dev-cycle` and `scrum` over `dev-cycle`, all on one board; the cafe with bookkeeping after PC3 and the waggle amendment | each demo runs from a poorly specified input to a terminal state under its orchestrator |
+| PC2 | role skills; the `curator-playbook-dev-cycle` package (orchestrator plus role skills in `skills/`, template in the orchestrator's data, tool providers outside the collection) on Skillfile schema 2; task-board resolves roles from the project overlay `.roles`, then installed role skills, then `~/.roles` read-only for one release with a warning; `setup.sh` stops copying `~/.roles` | a clean machine gets every role from one Skillfile selector; this realizes roadmap milestone M1 |
+| PC3 | the delivery module proper (the PC1 seams become a module that checks its invariants itself); `task-board tick` with its scheduler and the tool executor; signed events and approvals; hand-off across boards through waggle | the delivery invariants hold on every delivery workflow; the cafe demo runs its SLA, schedule, tool and payment event |
 
-PC4 of the first plan (a Curator package kind for playbooks) is dropped: a playbook is a collection of skills.
+PC4 of the first plan is dropped *(decided)*: a playbook is a collection of skills. The constructor-ready schema, which the roadmap's PC4 row also carried, moves into PC1; the Curator changes are the Curator goal. The wiki's roadmap rows are updated there.
 
 ## Demo playbooks
 
 Each demo takes a deliberately rough input and runs it through its playbook under one orchestrator. Chains show one playbook's output becoming another's input.
 
-1. `dev-cycle` — today's delivery process, cleaned up, with the delivery invariants.
-2. `bug-hunt` → `dev-cycle` — a proven finding is offered to the fixing process.
-3. `scrum` over `dev-cycle` — a cadence composed over delivery, sprints holding stories by link.
-4. Cafe operations — inventory → purchasing → accounting: humans, tools, timers, recurrence, signed events.
+1. `dev-cycle` — today's delivery process, cleaned up, with the delivery invariants. After PC1.
+2. `bug-hunt` → `dev-cycle` — a proven finding is offered to the fixing process on the same board. After PC1.
+3. `scrum` over `dev-cycle` — a cadence composed over delivery, sprints holding stories by link, estimate fields delegated by the slot binding. After PC1.
+4. Cafe operations with bookkeeping — inventory → purchasing → accounting: humans, a tool, timers, recurrence, signed events, a hand-off whose result comes back. After PC3 and the waggle amendment.
 5. Incident → post-mortem → fix in `dev-cycle`.
 6. Patent — research → draft → refuter → filing.
 7. Agency — lead → estimate → project (`dev-cycle`) → invoice.
 
 ## Dependencies
 
-- Curator: release Skillfile schema 2 from its flag; `dependencies.skills` gains `directory` selection (spec §8.3).
-- Agent selection (`skill-project-management/.specs/drafts/agent-selection.md`): the operator file that binds models and effort to needs; §9 of the spec amends its §3 and §8.
-- waggle: approver signatures for risky human acts, hand-off offers between orchestrators, scope leases for composed orchestrators.
-- Session host: marks hosted sessions so the kernel can tell agent sessions from people; runs `task-board tick` every minute.
-- task-board: the seam for PC1; the goal ledger stays there.
+- **Curator:** release Skillfile schema 2 from its flag; `dependencies.skills` gains `directory` selection, so an orchestrator can depend on a tool provider in its own repository (spec §8.3). Runtime-mode dependencies narrowed to commands already exist (curator-spec core §4.4).
+- **Agent selection** (`skill-project-management/.specs/drafts/agent-selection.md`): the spec amends its §3 (need vocabulary and spelling), §7 (admission without an operator file) and §8 (temporary relaxation), and LP D9 (launch profiles) for the case without an operator file; `Playbook.json` supersedes its committed project layer for role needs, admission, data policy and waivers.
+- **waggle:** approver signatures, hand-off offers and scope leases, which exist; and **an amendment** for the waggle specification's owner (spec §17, H7): a class for board approvals and signed transitions, an event class with expiry and de-duplication, a service principal kind for event bridges, a `coord` type that returns a hand-off's result, and user verification available to board policy. PC3 and the cafe demo need it; the PC1 demos do not.
+- **Scheduler:** `task-board tick` needs a periodic caller: a capability the session host does not have yet, or a documented launchd, systemd timer or cron entry (spec §6.9). PC3.
+- **Lease store:** the board's own lease on one machine; waggle's lease store (NATS JetStream KV, milestone CM2) for a board shared across machines. Until CM2 a shared board runs tick on one machine only.
+- **Session host:** marks hosted sessions so the kernel can tell agent sessions from people, and may host the periodic tick and the tool executor.
+- **task-board:** the seam for PC1, the delivery seams over today's commands, the local hand-off, and the goal ledger (and `rejected`, if the ledger adopts it).
 
 ## Risks
 
-- Reproducing today's permissive status model exactly: the kernel has no transition table and several gates depend on run context (spawned run, manual move). PC1 may accept documented differences instead of identity; spec §14 lists them.
-- Authority is only as strong as the actor signal: until hosted sessions are marked and actions signed, refusals for agent runs are a guardrail, so risky human acts require signatures from the start.
+- Reproducing today's permissive status model exactly: the kernel has no transition table and several gates depend on run context (spawned run, own element, manual move). PC1 may accept documented differences instead of identity; spec §14 lists them.
+- Authority is only as strong as the actor signal and the pinned revision: until hosted sessions are marked and actions signed, refusals for agent runs are a guardrail; a project without git, or one whose landings are not reviewed, weakens the pinned revision.
+- Signatures show that a person acted only when they carry user verification; keys that cannot carry it (Secure Enclave keys today) protect the key but not presence, which the H7 question must settle.
 - Two sources of truth for roles during migration (`.roles`, `~/.roles`, installed skills): the PC2 lookup order must be explicit and logged.
+- PC1 grows by the delivery seams and the local hand-off that the early demos need; keep each seam a thin adapter over today's commands.
 - Schema churn before PC1: keep `schema_version` at 1 until the module ships, then version changes explicitly.

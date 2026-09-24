@@ -1,0 +1,26 @@
+{
+  "$schema": "../../schema/playbook-v1.schema.json",
+  "schema_version": 1,
+  "description": "A cafe project composing cafe-ops with bookkeeping. Only this file, read at its committed revision, binds people and event signer groups, enables the supplier tool, the weekly schedule and automatic spawns, sets the data policy and decides which human acts need signatures. Principals follow waggle; the service kind svc: is proposed in the pending waggle amendment.",
+  "uses": ["cafe-ops", "bookkeeping"],
+  "bind": { "cafe-ops.accounting-process": "bookkeeping", "cafe-ops.invoice": "bookkeeping.invoice" },
+  "root": "cafe-orchestrator",
+  "people": {
+    "cafe-managers": { "principals": ["op:alice@cafe", "op:bob@cafe"] },
+    "accountants": { "principals": ["op:carol@cafe"] }
+  },
+  "services": {
+    "supplier-bridge": { "principals": ["svc:supplier-bridge@cafe"], "description": "Verifies the supplier portal's webhook signature before it signs supplier events." },
+    "payment-bridge": { "principals": ["svc:payment-bridge@cafe"], "description": "Verifies the payment provider's webhook signature before it signs payment events." }
+  },
+  "policy": {
+    "goals": { "orchestrator_goal": { "cafe-orchestrator": "inventory-check", "bookkeeping.bookkeeper": "ledger" } },
+    "enable": { "tools": ["supplier.send-order"], "schedules": ["weekly-inventory"], "auto_spawn": true },
+    "signatures": {
+      "require_for": ["approvals", "spending", "overrides"],
+      "min_assurance": "hardware-bound",
+      "user_verified": "required"
+    },
+    "data": { "billing": ["subscription", "local"] }
+  }
+}

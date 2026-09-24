@@ -1,0 +1,60 @@
+{
+  "$schema": "../../schema/playbook-v1.schema.json",
+  "schema_version": 1,
+  "name": "bookkeeping",
+  "description": "Books and pays supplier invoices. Invoices arrive by hand-off from other processes (the cafe's purchase orders); an accountant releases each payment; a payment event signed by the bridge the project binds marks it paid. The receiving side of the cafe's hand-off: when an invoice reaches paid or rejected, the offering element receives process.returned.",
+  "root": "bookkeeper",
+  "roles": {
+    "bookkeeper": { "skill": "books-orchestrator", "capability": "orchestrator" },
+    "accountant": { "kind": "human", "who": "accountants", "capability": "approver" }
+  },
+  "events": {
+    "payment.received": { "signed_by": "payment-bridge", "description": "The bank or payment provider confirmed the transfer." }
+  },
+  "entities": {
+    "ledger": { "root": true, "contains": ["invoice"], "workflow": "ledger", "description": "One ledger per accounting period; received invoices are placed in the open one." },
+    "invoice": {
+      "parents": ["ledger"],
+      "workflow": "invoice",
+      "fields": {
+        "supplier": { "type": "string", "required": true },
+        "amount": { "type": "money", "currency": "EUR", "required": true }
+      }
+    }
+  },
+  "workflows": {
+    "ledger": {
+      "initial": "open",
+      "states": {
+        "open": { "owner": "bookkeeper" },
+        "closed": { "terminal": true }
+      },
+      "transitions": [
+        { "from": "open", "to": "closed", "guards": ["children.terminal"] }
+      ]
+    },
+    "invoice": {
+      "initial": "received",
+      "states": {
+        "received": { "owner": "bookkeeper" },
+        "approval": { "owner": "accountant" },
+        "awaiting-payment": { "owner": "bookkeeper" },
+        "paid": { "terminal": true },
+        "rejected": { "terminal": true, "resolution": ["duplicate", "wrong-amount", "not-ordered"] }
+      },
+      "transitions": [
+        { "from": "received", "to": "approval", "guards": [{ "guard": "fields.present", "fields": ["supplier", "amount"] }] },
+        {
+          "from": "approval",
+          "to": "awaiting-payment",
+          "risk": "spending",
+          "guards": [{ "guard": "approvals", "role": "accountant", "min": 1 }],
+          "description": "The accountant releases the payment."
+        },
+        { "from": "awaiting-payment", "to": "paid", "on": { "event": "payment.received" } },
+        { "from": "awaiting-payment", "to": "approval", "on": { "after": "P3D" }, "description": "No payment confirmation within three days: back to the accountant." },
+        { "from": ["received", "approval"], "to": "rejected" }
+      ]
+    }
+  }
+}

@@ -2,7 +2,7 @@
   "$schema": "../schema/playbook-v1.schema.json",
   "schema_version": 1,
   "name": "formal-missions",
-  "description": "Expressibility check modelled on prove2.me: a mission is split into milestone lemmas; each attempt is accepted only when a tool, the Lean kernel, checks it. The strongest guard is a machine checker owning a state. The checker is a command exported by a skill of this package, never a program string.",
+  "description": "Expressibility check modelled on prove2.me: a mission is split into milestone lemmas; each attempt is accepted only when a tool, the Lean kernel, checks it. The strongest guard is a machine checker owning a state. The checker is a command exported by a provider skill that the orchestrator skill declares as a runtime dependency; the kernel's tool executor runs it, never the prover's run (spec sections 6.11, 8.5).",
   "root": "orchestrator",
   "roles": {
     "orchestrator": { "skill": "proof-orchestrator", "capability": "orchestrator" },
@@ -13,8 +13,9 @@
   "tools": {
     "lean.check": {
       "skill": "proof-lean-kernel",
-      "command": "check",
-      "description": "The package's own skill wraps the Lean toolchain; Curator audits and locks it like any skill."
+      "command": "proof-lean-check",
+      "timeout": "PT30M",
+      "description": "The provider skill wraps the Lean toolchain. The orchestrator's agent-skill.json declares it in runtime mode narrowed to proof-lean-check, so Curator installs, audits and locks it without putting its context into sessions."
     }
   },
   "entities": {
@@ -76,7 +77,7 @@
       "initial": "proving",
       "states": {
         "proving": { "owner": "prover" },
-        "checking": { "owner": "lean" },
+        "checking": { "owner": "lean", "description": "Entering enqueues one invocation of lean.check for this entry; the executor's exit status fires tool.passed or tool.failed, and a timeout fires tool.failed." },
         "accepted": { "terminal": true },
         "rejected": { "terminal": true, "resolution": ["kernel-error", "sorry-present", "axiom-used", "gave-up"] }
       },
@@ -88,6 +89,11 @@
           "to": "proving",
           "on": { "event": "tool.failed" },
           "limit": { "max": 5, "then": "rejected", "resolution": "gave-up" }
+        },
+        {
+          "from": ["proving", "checking"],
+          "to": "rejected",
+          "description": "The prover gives up while proving; from checking, only a human override (a captain) may abandon the attempt."
         }
       ]
     }

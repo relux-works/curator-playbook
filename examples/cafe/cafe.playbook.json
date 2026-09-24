@@ -1,12 +1,12 @@
 {
-  "$schema": "../schema/playbook-v1.schema.json",
+  "$schema": "../../schema/playbook-v1.schema.json",
   "schema_version": 1,
   "name": "cafe-ops",
-  "description": "Running a small cafe: a weekly inventory creates purchase orders; a person approves spending and confirms deliveries; the supplier portal is a tool (a command of this package's own skill); supplier and payment events arrive signed; invoices are offered to the accounting process. Exercises custom fields, human and tool owners, timers, recurrence, external events, parallel lines with a join, a loop limit and hand-off. The schedule and the automatic spawns take effect only when the project enables them.",
+  "description": "Running a small cafe: a weekly inventory creates purchase orders; a person approves spending and confirms deliveries; the supplier portal is a tool (a command of a provider skill that the orchestrator skill declares as a runtime dependency); supplier events arrive signed by a bridge the project binds; invoices are offered to the accounting process, which returns when the invoice is paid or rejected. Exercises custom fields, human and tool owners, timers, recurrence, external events, parallel lines with a join, a loop limit, hand-off and per-process privacy. The tool, the schedule and the automatic spawns take effect only when the project enables them.",
   "root": "cafe-orchestrator",
   "slots": {
     "accounting-process": { "kind": "process", "description": "The process that books and pays invoices." },
-    "invoice": { "description": "The invoice type of the accounting process.", "requires": { "terminal": ["paid"] } }
+    "invoice": { "description": "The invoice type of the accounting process.", "requires": { "terminal": ["paid", "rejected"] } }
   },
   "roles": {
     "cafe-orchestrator": { "skill": "cafe-orchestrator", "capability": "orchestrator" },
@@ -19,14 +19,14 @@
   "tools": {
     "supplier.send-order": {
       "skill": "cafe-supplier-portal",
-      "command": "send-order",
-      "description": "A skill of this package; the kernel runs its exported command when a purchase order enters sent."
+      "command": "cafe-send-order",
+      "timeout": "PT2M",
+      "description": "Provider skill in tools/supplier-portal of the package, outside the skills collection; the orchestrator's manifest depends on it in runtime mode narrowed to cafe-send-order. The kernel's tool executor runs it when a purchase order enters sending."
     }
   },
   "events": {
-    "supplier.confirmed": { "signers": ["tool:supplier-portal@cafe"], "description": "The supplier accepted the order." },
-    "supplier.shipped": { "signers": ["tool:supplier-portal@cafe"] },
-    "payment.received": { "signers": ["tool:payment-gateway@cafe"] }
+    "supplier.confirmed": { "signed_by": "supplier-bridge", "description": "The supplier accepted the order." },
+    "supplier.shipped": { "signed_by": "supplier-bridge" }
   },
   "entities": {
     "inventory-check": {
@@ -83,8 +83,9 @@
       "states": {
         "draft": { "owner": "buyer", "description": "Supplier and amount are required before the order leaves draft." },
         "approval": { "owner": "manager" },
-        "sent": { "owner": "supplier-portal" },
-        "escalated": { "owner": "manager", "description": "The supplier did not confirm in time, or approval kept being refused." },
+        "sending": { "owner": "supplier-portal", "description": "The tool places the order with the supplier portal." },
+        "awaiting-confirmation": { "owner": "cafe-orchestrator", "description": "The order is placed; the supplier has fifteen minutes to confirm." },
+        "escalated": { "owner": "manager", "description": "The portal failed, the supplier did not confirm in time, approval kept being refused, or accounting rejected the invoice." },
         "confirmed": { "owner": "cafe-orchestrator" },
         "receiving": { "owner": "manager", "description": "A person checks each delivered line." },
         "invoiced": { "owner": "accounting" },
@@ -96,13 +97,33 @@
         {
           "from": "approval",
           "to": "draft",
-          "guards": [{ "guard": "verdict", "is": "changes-requested" }],
+          "guards": [{ "guard": "verdict", "is": "changes_requested" }],
           "limit": { "max": 2, "then": "escalated" }
         },
-        { "from": "approval", "to": "sent", "guards": [{ "guard": "approvals", "role": "manager", "min": 1 }] },
-        { "from": "sent", "to": "confirmed", "on": { "event": "supplier.confirmed" } },
-        { "from": "sent", "to": "escalated", "on": { "after": "PT15M" } },
-        { "from": "escalated", "to": "sent", "guards": [{ "guard": "approvals", "role": "manager", "min": 1 }] },
+        {
+          "from": "approval",
+          "to": "sending",
+          "risk": "spending",
+          "guards": [{ "guard": "approvals", "role": "manager", "min": 1 }],
+          "description": "Entering sending places the order, so the move is marked as spending."
+        },
+        { "from": "sending", "to": "awaiting-confirmation", "on": { "event": "tool.passed" } },
+        { "from": "sending", "to": "escalated", "on": { "event": "tool.failed" } },
+        { "from": "awaiting-confirmation", "to": "confirmed", "on": { "event": "supplier.confirmed" } },
+        { "from": "awaiting-confirmation", "to": "escalated", "on": { "after": "PT15M" } },
+        {
+          "from": "escalated",
+          "to": "sending",
+          "risk": "spending",
+          "guards": [{ "guard": "approvals", "role": "manager", "min": 1 }],
+          "description": "Sending again needs a new approval: the one recorded before the first send is not fresh (spec section 6.3)."
+        },
+        {
+          "from": "escalated",
+          "to": "confirmed",
+          "on": { "event": "supplier.confirmed" },
+          "description": "A confirmation that arrives after the SLA fired is not lost: it is retained and moves the order on (spec section 6.9)."
+        },
         { "from": "confirmed", "to": "receiving", "on": { "event": "supplier.shipped" } },
         {
           "from": "receiving",
@@ -110,8 +131,19 @@
           "guards": ["children.terminal"],
           "actions": [{ "action": "handoff", "to": "accounting", "create": "invoice", "link_field": "invoice" }]
         },
-        { "from": "invoiced", "to": "paid", "on": { "event": "payment.received" } },
-        { "from": "*", "to": "cancelled" }
+        {
+          "from": "invoiced",
+          "to": "paid",
+          "on": { "event": "process.returned" },
+          "guards": [{ "guard": "process.result", "in": ["paid"] }]
+        },
+        {
+          "from": "invoiced",
+          "to": "escalated",
+          "on": { "event": "process.returned" },
+          "guards": [{ "guard": "process.result", "in": ["rejected"] }]
+        },
+        { "from": "*", "to": "cancelled", "description": "From a tool- or process-owned state only a human may cancel (an override)." }
       ]
     },
     "line": {
