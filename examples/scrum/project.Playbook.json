@@ -21,14 +21,16 @@
   "policy": {
     "goals": { "orchestrator_goal": { "scrum-orchestrator": "sprint", "dev-cycle.orchestrator": "story" } },
     "effort_floor": { "dev-cycle.reviewer": "medium" },
-    "wip": { "board": 12, "per_role": { "dev-cycle.developer": 3, "dev-cycle.reviewer": 2 }, "per_state": { "dev.review": 4 } },
+    "wip": { "board": 12, "per_role": { "dev-cycle.developer": 3, "dev-cycle.reviewer": 2 }, "per_state": { "dev.accepted": 6 },
+             "description": "At most six accepted leaves wait for their stories to integrate; the reviewer limit already bounds dev.review." },
     "enable": { "auto_spawn": true },
     "data": {
       "billing": ["subscription", "local"],
       "models": {
         "allow": [ "claude/claude-opus-5-5", { "model": "codex/*", "effort": "medium..max" } ],
         "deny": [ "codex/gpt-6-astra" ],
-        "description": "The company's security policy admits only these vendors' models on this code; teammates without them cannot run the project's roles."
+        "roles": { "dev-cycle.reviewer": { "allow": [ "claude/claude-opus-5-5" ] } },
+        "description": "The company's security policy admits only these vendors' models on this code, and reviews only on one model; teammates without them cannot run the project's roles."
       }
     }
   }

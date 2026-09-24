@@ -67,7 +67,7 @@
         "blocked_from": {
           "type": "enum",
           "values": ["open", "development", "review"],
-          "description": "The state the element was blocked from. The kernel writes it on entry into blocked (record_source) and clears it on exit; the resume routes read it, and runs never write it (spec sections 5.2, 6.1)."
+          "description": "The state the element was blocked from. The kernel writes it on entry into blocked (record_source) and clears it on exit; the resume routes read it. Only the kernel writes it: no run, session or person does (spec section 6.1)."
         }
       },
       "estimates": [

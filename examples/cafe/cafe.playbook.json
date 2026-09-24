@@ -105,7 +105,7 @@
           "to": "sending",
           "risk": "spending",
           "guards": [{ "guard": "approvals", "role": "manager", "min": 1 }],
-          "description": "Entering sending places the order, so the move is marked as spending."
+          "description": "Entering sending places the order, so the move is marked as spending. The approval binds the digest of every declared field of the order: a change to the supplier, the amount or any other field voids it (spec section 6.4)."
         },
         { "from": "sending", "to": "awaiting-confirmation", "on": { "event": "tool.passed" } },
         { "from": "sending", "to": "escalated", "on": { "event": "tool.failed" } },

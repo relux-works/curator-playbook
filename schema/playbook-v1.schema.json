@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/relux-works/curator-playbook/schema/playbook-v1.schema.json",
-  "title": "Playbook.json (draft v3, schema_version 1)",
-  "description": "Process configuration for agent systems. DRAFT v3.1, not normative until frozen; see spec/process-configuration.md. A playbook is data only: it never names a program, script, webhook or URL (spec section 8.5). The schema refuses URLs and shell syntax in hook arguments, schedule fields, event signers and package pins, and checks the arguments of the field, delivery.checks-passed and delivery.integration-evidence guards and of the delivery.integrate action; the per-hook argument schemas of the other provider hooks come with the provider modules (PC1). Keys starting with x- are reserved for extensions and ignored by the kernel.",
+  "title": "Playbook.json (draft v3.3, schema_version 1)",
+  "description": "Process configuration for agent systems. DRAFT v3.3, not normative until frozen; see spec/process-configuration.md. A playbook is data only: it never names a program, script, webhook or URL (spec section 8.5). The schema refuses URLs and shell syntax in hook arguments, schedule fields, event signers and package pins, and checks the arguments of the field, delivery.checks-passed and delivery.integration-evidence guards and of the delivery.integrate action; the per-hook argument schemas of the other provider hooks come with the provider modules (PC1). Keys starting with x- are reserved for extensions and ignored by the kernel.",
   "type": "object",
   "required": [
     "$schema",
@@ -1202,7 +1202,7 @@
         },
         "record_source": {
           "$ref": "#/$defs/field-name",
-          "description": "A field into which the kernel writes the source state on every entry, so a hold state can route back to where the element came from (spec section 6.1). A kernel write: runs never set it."
+          "description": "A field into which the kernel writes the source state on every entry, so a hold state can route back to where the element came from (spec section 6.1). Only the kernel writes it: no run, session or person does. The validator checks that the field's type admits every source state of the entries."
         },
         "clear_on_exit": {
           "type": "array",
@@ -1311,7 +1311,7 @@
         },
         "via": {
           "$ref": "#/$defs/hook-name",
-          "description": "The one command that performs this (from, to, via) triple, for example accept_cr; it does not restrict other triples into the same state."
+          "description": "The one command that performs this transition, for example accept_cr; a transition is keyed by (from, to, via, on), and via does not restrict other transitions into the same state (spec section 6.2)."
         },
         "guards": {
           "type": "array",
@@ -1372,7 +1372,7 @@
         },
         "remove": {
           "type": "boolean",
-          "description": "In a file that extends a parent: delete the inherited transition with the same (from, to, via) triple."
+          "description": "In a file that extends a parent: delete the inherited transition with the same (from, to, via, on) key (spec sections 6.2, 7.1)."
         },
         "description": {
           "type": "string"
@@ -1659,6 +1659,15 @@
                           "effort": {
                             "$ref": "#/$defs/effort-range"
                           },
+                          "windows": {
+                            "type": "array",
+                            "minItems": 1,
+                            "uniqueItems": true,
+                            "items": {
+                              "$ref": "#/$defs/utc-window"
+                            },
+                            "description": "Times of day, in UTC, when this entry admits its models; outside them it admits nothing. Today's spawn.schedule.windows migrate here; the operator's [windows] narrow further (spec section 9)."
+                          },
                           "description": {
                             "type": "string"
                           }
@@ -1666,7 +1675,7 @@
                       }
                     ]
                   },
-                  "description": "Admitted models; absent means no allow list. An entry may carry an effort range, the committed bound today's spawn.ceilings express per runtime."
+                  "description": "Admitted models; absent means no allow list. When several entries match a row, the most specific decides: <runtime>/<model>, then <runtime>/*, then */<model>; the validator refuses two entries of the same specificity that match one row. An entry may carry an effort range, the committed bound today's spawn.ceilings express per runtime, and time windows."
                 },
                 "deny": {
                   "type": "array",
@@ -1677,11 +1686,76 @@
                   },
                   "description": "Models never admitted, whatever allow says."
                 },
+                "roles": {
+                  "type": "object",
+                  "propertyNames": {
+                    "$ref": "#/$defs/qualified"
+                  },
+                  "additionalProperties": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "minProperties": 1,
+                    "properties": {
+                      "allow": {
+                        "type": "array",
+                        "minItems": 1,
+                        "items": {
+                          "oneOf": [
+                            {
+                              "$ref": "#/$defs/model-pattern"
+                            },
+                            {
+                              "type": "object",
+                              "additionalProperties": false,
+                              "required": [
+                                "model"
+                              ],
+                              "properties": {
+                                "model": {
+                                  "$ref": "#/$defs/model-pattern"
+                                },
+                                "effort": {
+                                  "$ref": "#/$defs/effort-range"
+                                },
+                                "windows": {
+                                  "type": "array",
+                                  "minItems": 1,
+                                  "uniqueItems": true,
+                                  "items": {
+                                    "$ref": "#/$defs/utc-window"
+                                  },
+                                  "description": "Times of day, in UTC, when this entry admits its models; outside them it admits nothing. Today's spawn.schedule.windows migrate here; the operator's [windows] narrow further (spec section 9)."
+                                },
+                                "description": {
+                                  "type": "string"
+                                }
+                              }
+                            }
+                          ]
+                        },
+                        "description": "The role's admitted models, on top of the project's lists."
+                      },
+                      "deny": {
+                        "type": "array",
+                        "minItems": 1,
+                        "uniqueItems": true,
+                        "items": {
+                          "$ref": "#/$defs/model-pattern"
+                        },
+                        "description": "Models the role never runs."
+                      },
+                      "description": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "description": "Per role: a further restriction on top of the project's lists; a role is admitted only what both admit. Today's per-role ceilings (spawn.ceilings.<runtime>.roles.<role>) migrate here (spec sections 2.3, 9)."
+                },
                 "description": {
                   "type": "string"
                 }
               },
-              "description": "Project only: hard model admission, for example under a vendor's or a company's security policy. Selection admits project admission ∩ the operator's [allow] ∩ machine facts ∩ needs; without an operator file the automatic choice stays inside it. Today's spawn.ceilings migrate into it (spec sections 2.3, 9)."
+              "description": "Project only: hard model admission, for example under a vendor's or a company's security policy. Selection admits project admission ∩ the operator's [allow] ∩ machine facts ∩ needs; without an operator file the automatic choice stays inside it. Today's spawn.ceilings, the runtime set of preferred_agentic_system and spawn.schedule.windows migrate into it (spec sections 2.3, 9)."
             }
           },
           "description": "Project only: the project's data policy (agent-selection section 4): which publishers, models and billing classes may process this project's data (spec section 9)."
@@ -1915,9 +1989,9 @@
                     "minItems": 1,
                     "uniqueItems": true,
                     "items": {
-                      "$ref": "#/$defs/hook-name"
+                      "$ref": "#/$defs/workflow-state"
                     },
-                    "description": "For transitions: human-owned states, named <workflow>.<state>, or a bare state name for that state in every workflow."
+                    "description": "For transitions: human-owned states, named <workflow>.<state>. For approvals: optionally, the states whose approvals the rule covers; absent, every state where the role's approvals are counted."
                   },
                   "to": {
                     "type": "array",
@@ -1926,7 +2000,7 @@
                     "items": {
                       "$ref": "#/$defs/qualified"
                     },
-                    "description": "Agent roles with capability orchestrator that may act as delegates."
+                    "description": "Agent roles with capability orchestrator that may act as delegates, through the grantor's own sessions of the role unless a grant names other sessions (spec section 4.2)."
                   },
                   "description": {
                     "type": "string"
@@ -1938,6 +2012,11 @@
                       "$ref": "#/$defs/field-condition"
                     },
                     "description": "Hard ceilings: field conditions every delegated act must meet; a granted delegation may only be stricter."
+                  },
+                  "self_approval": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Lets a delegate approve an element that the delegate session, or a run it spawned, wrote a declared field of. Without it such a delegated approval does not count: no self-approval, as there is no self-review (spec section 4.2)."
                   }
                 },
                 "allOf": [
@@ -1994,7 +2073,10 @@
                     "properties": {
                       "acts": {
                         "contains": {
-                          "const": "transitions"
+                          "enum": [
+                            "transitions",
+                            "approvals"
+                          ]
                         }
                       }
                     }
@@ -2034,9 +2116,9 @@
                     "minItems": 1,
                     "uniqueItems": true,
                     "items": {
-                      "$ref": "#/$defs/hook-name"
+                      "$ref": "#/$defs/workflow-state"
                     },
-                    "description": "For transitions: human-owned states, named <workflow>.<state>, or a bare state name for that state in every workflow."
+                    "description": "For transitions: human-owned states, named <workflow>.<state>. For approvals: optionally, the states whose approvals the rule covers."
                   },
                   "to": {
                     "type": "array",
@@ -2105,7 +2187,10 @@
                     "properties": {
                       "acts": {
                         "contains": {
-                          "const": "transitions"
+                          "enum": [
+                            "transitions",
+                            "approvals"
+                          ]
                         }
                       }
                     }
@@ -2118,7 +2203,7 @@
               "type": "string"
             }
           },
-          "description": "Project only and authority-bearing: which human acts a person may delegate to which orchestrator roles, under which hard ceilings. A person grants a delegation record within it; delegated acts count as the grantor's only within the delegation and these ceilings; everything else waits for the person. Without this key nothing may be delegated (spec section 4.2)."
+          "description": "Project only and authority-bearing: which human acts a person may delegate to which orchestrator roles, under which hard ceilings. A person grants a delegation record within it, for acts their own principal could perform; delegated acts count as the grantor's only when they come from the grantor's own sessions or sessions the grant names, and only within the delegation and these ceilings; acts under delegation count as at most one principal toward a quorum; everything else waits for the person. Without this key nothing may be delegated (spec section 4.2)."
         },
         "delivery": {
           "type": "object",
@@ -2585,6 +2670,17 @@
         }
       ],
       "description": "A field condition: the kernel guard field in its object form, without applies_to (spec sections 4.2, 6.3)."
+    },
+    "workflow-state": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]*(\\.[a-z][a-z0-9-]*){1,2}$",
+      "maxLength": 130,
+      "description": "A state named <workflow>.<state>, qualified by its playbook when a composition makes it ambiguous (<playbook>.<workflow>.<state>)."
+    },
+    "utc-window": {
+      "type": "string",
+      "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]-([01][0-9]|2[0-3]):[0-5][0-9]$",
+      "description": "A time-of-day window in UTC, HH:MM-HH:MM, the end excluded; an end earlier than the start crosses midnight (spec section 9)."
     }
   }
 }

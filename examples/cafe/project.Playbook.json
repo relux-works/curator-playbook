@@ -24,9 +24,10 @@
     },
     "delegation": {
       "allow": [
-        { "acts": ["approvals"], "role": "manager", "to": ["cafe-orchestrator"],
+        { "acts": ["approvals"], "role": "manager", "states": ["purchase.approval"], "to": ["cafe-orchestrator"],
           "ceiling": [ { "guard": "field", "name": "amount", "lte": 1000 } ],
-          "description": "A manager may let the orchestrator approve orders up to 1,000 EUR; a granted delegation may be stricter, for example 500 EUR per order and 2,000 EUR a week." },
+          "self_approval": true,
+          "description": "A manager may let their own orchestrator sessions approve purchase orders up to 1,000 EUR; a granted delegation may be stricter, for example 500 EUR per order and 2,000 EUR a week. The orchestrator's buyer runs draft the orders, so the rule allows the delegate to approve orders its own runs filled in; inventory approvals stay with the managers." },
         { "acts": ["transitions"], "states": ["purchase.approval"], "to": ["cafe-orchestrator"],
           "ceiling": [ { "guard": "field", "name": "amount", "lte": 1000 } ],
           "description": "The orchestrator may then send the approved order on the manager's behalf." }
