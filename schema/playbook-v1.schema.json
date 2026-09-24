@@ -1633,9 +1633,58 @@
             },
             "local_only": {
               "type": "boolean"
+            },
+            "models": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "allow": {
+                  "type": "array",
+                  "minItems": 1,
+                  "items": {
+                    "oneOf": [
+                      {
+                        "$ref": "#/$defs/model-pattern"
+                      },
+                      {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": [
+                          "model"
+                        ],
+                        "properties": {
+                          "model": {
+                            "$ref": "#/$defs/model-pattern"
+                          },
+                          "effort": {
+                            "$ref": "#/$defs/effort-range"
+                          },
+                          "description": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    ]
+                  },
+                  "description": "Admitted models; absent means no allow list. An entry may carry an effort range, the committed bound today's spawn.ceilings express per runtime."
+                },
+                "deny": {
+                  "type": "array",
+                  "minItems": 1,
+                  "uniqueItems": true,
+                  "items": {
+                    "$ref": "#/$defs/model-pattern"
+                  },
+                  "description": "Models never admitted, whatever allow says."
+                },
+                "description": {
+                  "type": "string"
+                }
+              },
+              "description": "Project only: hard model admission, for example under a vendor's or a company's security policy. Selection admits project admission ∩ the operator's [allow] ∩ machine facts ∩ needs; without an operator file the automatic choice stays inside it. Today's spawn.ceilings migrate into it (spec sections 2.3, 9)."
             }
           },
-          "description": "Project only: the project's data policy (agent-selection section 4): which publishers and billing classes may process this project's data (spec section 9)."
+          "description": "Project only: the project's data policy (agent-selection section 4): which publishers, models and billing classes may process this project's data (spec section 9)."
         },
         "goals": {
           "type": "object",
@@ -1736,7 +1785,8 @@
                       "spending",
                       "halts",
                       "overrides",
-                      "human-transitions"
+                      "human-transitions",
+                      "delegations"
                     ]
                   },
                   {
@@ -1811,16 +1861,264 @@
                         "required",
                         "if-supported"
                       ]
+                    },
+                    "delegations": {
+                      "enum": [
+                        "required",
+                        "if-supported"
+                      ]
                     }
                   },
                   "minProperties": 1,
                   "description": "A value per category; categories not named keep their default."
                 }
               ],
-              "description": "Whether a required signature must carry the user-verified flag (a FIDO2 signature with user verification, waggle section 4.4). Defaults, whenever the project sets a signature policy: required for approvals, relaxations and halts; if-supported for spending, overrides and human-transitions. A project sets one value for every category or a value per category; with the default min_assurance, if-supported admits Secure Enclave and other hardware-bound keys, never software keys (spec section 4.2)."
+              "description": "Whether a required signature must carry the user-verified flag (a FIDO2 signature with user verification, waggle section 4.4). Defaults, whenever the project sets a signature policy: required for approvals, relaxations, halts and delegations; if-supported for spending, overrides and human-transitions. A project sets one value for every category or a value per category; with the default min_assurance, if-supported admits Secure Enclave and other hardware-bound keys, never software keys (spec section 4.2)."
             }
           },
-          "description": "Project only: which human acts need a waggle approver signature, at what key assurance, and whether the signature must show user verification (spec section 4.2). Signed board acts need the waggle amendment A1, implemented with CM2; until then the validator warns about each category in require_for that has no signable form (spec section 10)."
+          "description": "Project only: which human acts need a waggle approver signature, at what key assurance, and whether the signature must show user verification (spec section 4.2). Signed board acts need the waggle amendment A1, implemented with CM2; until then the validator warns about each category in require_for that has no signable form (spec section 10). Granting or revoking a delegation (category delegations) is signed whenever the project sets a signature policy, listed or not."
+        },
+        "delegation": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "allow": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "acts",
+                  "to"
+                ],
+                "properties": {
+                  "acts": {
+                    "type": "array",
+                    "minItems": 1,
+                    "uniqueItems": true,
+                    "items": {
+                      "enum": [
+                        "approvals",
+                        "transitions",
+                        "relaxations"
+                      ]
+                    },
+                    "description": "approvals of a named human role; transitions out of named human-owned states; relaxations, the approval of ask exceptions (spec section 4.2)."
+                  },
+                  "role": {
+                    "$ref": "#/$defs/qualified",
+                    "description": "For approvals: the human role whose approvals the rule covers."
+                  },
+                  "states": {
+                    "type": "array",
+                    "minItems": 1,
+                    "uniqueItems": true,
+                    "items": {
+                      "$ref": "#/$defs/hook-name"
+                    },
+                    "description": "For transitions: human-owned states, named <workflow>.<state>, or a bare state name for that state in every workflow."
+                  },
+                  "to": {
+                    "type": "array",
+                    "minItems": 1,
+                    "uniqueItems": true,
+                    "items": {
+                      "$ref": "#/$defs/qualified"
+                    },
+                    "description": "Agent roles with capability orchestrator that may act as delegates."
+                  },
+                  "description": {
+                    "type": "string"
+                  },
+                  "ceiling": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                      "$ref": "#/$defs/field-condition"
+                    },
+                    "description": "Hard ceilings: field conditions every delegated act must meet; a granted delegation may only be stricter."
+                  }
+                },
+                "allOf": [
+                  {
+                    "if": {
+                      "properties": {
+                        "acts": {
+                          "contains": {
+                            "const": "approvals"
+                          }
+                        }
+                      },
+                      "required": [
+                        "acts"
+                      ]
+                    },
+                    "then": {
+                      "required": [
+                        "role"
+                      ]
+                    }
+                  },
+                  {
+                    "if": {
+                      "properties": {
+                        "acts": {
+                          "contains": {
+                            "const": "transitions"
+                          }
+                        }
+                      },
+                      "required": [
+                        "acts"
+                      ]
+                    },
+                    "then": {
+                      "required": [
+                        "states"
+                      ]
+                    }
+                  }
+                ],
+                "dependentSchemas": {
+                  "role": {
+                    "properties": {
+                      "acts": {
+                        "contains": {
+                          "const": "approvals"
+                        }
+                      }
+                    }
+                  },
+                  "states": {
+                    "properties": {
+                      "acts": {
+                        "contains": {
+                          "const": "transitions"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "never": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "acts"
+                ],
+                "properties": {
+                  "acts": {
+                    "type": "array",
+                    "minItems": 1,
+                    "uniqueItems": true,
+                    "items": {
+                      "enum": [
+                        "approvals",
+                        "transitions",
+                        "relaxations"
+                      ]
+                    },
+                    "description": "approvals of a named human role; transitions out of named human-owned states; relaxations, the approval of ask exceptions (spec section 4.2)."
+                  },
+                  "role": {
+                    "$ref": "#/$defs/qualified",
+                    "description": "For approvals: the human role whose approvals the rule covers."
+                  },
+                  "states": {
+                    "type": "array",
+                    "minItems": 1,
+                    "uniqueItems": true,
+                    "items": {
+                      "$ref": "#/$defs/hook-name"
+                    },
+                    "description": "For transitions: human-owned states, named <workflow>.<state>, or a bare state name for that state in every workflow."
+                  },
+                  "to": {
+                    "type": "array",
+                    "minItems": 1,
+                    "uniqueItems": true,
+                    "items": {
+                      "$ref": "#/$defs/qualified"
+                    },
+                    "description": "Agent roles with capability orchestrator that may act as delegates."
+                  },
+                  "description": {
+                    "type": "string"
+                  }
+                },
+                "allOf": [
+                  {
+                    "if": {
+                      "properties": {
+                        "acts": {
+                          "contains": {
+                            "const": "approvals"
+                          }
+                        }
+                      },
+                      "required": [
+                        "acts"
+                      ]
+                    },
+                    "then": {
+                      "required": [
+                        "role"
+                      ]
+                    }
+                  },
+                  {
+                    "if": {
+                      "properties": {
+                        "acts": {
+                          "contains": {
+                            "const": "transitions"
+                          }
+                        }
+                      },
+                      "required": [
+                        "acts"
+                      ]
+                    },
+                    "then": {
+                      "required": [
+                        "states"
+                      ]
+                    }
+                  }
+                ],
+                "dependentSchemas": {
+                  "role": {
+                    "properties": {
+                      "acts": {
+                        "contains": {
+                          "const": "approvals"
+                        }
+                      }
+                    }
+                  },
+                  "states": {
+                    "properties": {
+                      "acts": {
+                        "contains": {
+                          "const": "transitions"
+                        }
+                      }
+                    }
+                  }
+                },
+                "description": "Acts no delegation may cover: for the roles in to, or for any role when to is absent. never wins over allow."
+              }
+            },
+            "description": {
+              "type": "string"
+            }
+          },
+          "description": "Project only and authority-bearing: which human acts a person may delegate to which orchestrator roles, under which hard ceilings. A person grants a delegation record within it; delegated acts count as the grantor's only within the delegation and these ceilings; everything else waits for the person. Without this key nothing may be delegated (spec section 4.2)."
         },
         "delivery": {
           "type": "object",
@@ -2248,6 +2546,45 @@
         }
       },
       "description": "A numeric range with at least one bound (spec section 9). The validator checks min <= max (spec section 10)."
+    },
+    "model-pattern": {
+      "type": "string",
+      "pattern": "^(\\*|[a-z0-9][a-z0-9._-]*)/(\\*|[A-Za-z0-9][A-Za-z0-9._:-]*)$",
+      "not": {
+        "const": "*/*"
+      },
+      "maxLength": 128,
+      "description": "A model pattern: <runtime>/<model>, <runtime>/* or */<model> (spec section 9)."
+    },
+    "effort-range": {
+      "type": "string",
+      "pattern": "^(minimal|low|medium|high|xhigh|max)(\\.\\.(minimal|low|medium|high|xhigh|max))?$",
+      "description": "One effort, or a range low..high on the common order minimal < low < medium < high < xhigh < max. The validator refuses an inverted range (spec section 9)."
+    },
+    "field-condition": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/guard-hook"
+        },
+        {
+          "type": "object",
+          "required": [
+            "guard",
+            "name"
+          ],
+          "properties": {
+            "guard": {
+              "const": "field"
+            }
+          },
+          "not": {
+            "required": [
+              "applies_to"
+            ]
+          }
+        }
+      ],
+      "description": "A field condition: the kernel guard field in its object form, without applies_to (spec sections 4.2, 6.3)."
     }
   }
 }

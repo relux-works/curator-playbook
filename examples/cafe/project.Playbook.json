@@ -1,7 +1,7 @@
 {
   "$schema": "../../schema/playbook-v1.schema.json",
   "schema_version": 1,
-  "description": "A cafe project composing cafe-ops with bookkeeping. Only this file, read at its committed revision, binds people and event signer groups, enables the supplier tool, the weekly schedule and automatic spawns, sets the data policy and decides which human acts need signatures (the cafe demo follows the waggle amendment, CM2, and PC3). Principals follow waggle; the service kind svc: comes with the waggle amendment (spec section 17). Tools the project does not list in policy.enable.tools stay disabled.",
+  "description": "A cafe project composing cafe-ops with bookkeeping. Only this file, read at its committed revision, binds people and event signer groups, enables the supplier tool, the weekly schedule and automatic spawns, sets the data policy, decides which manager acts may be delegated to the orchestrator and decides which human acts need signatures (the cafe demo follows the waggle amendment, CM2, and PC3). Principals follow waggle; the service kind svc: comes with the waggle amendment (spec section 17). Tools the project does not list in policy.enable.tools stay disabled.",
   "uses": ["cafe-ops", "bookkeeping"],
   "bind": { "cafe-ops.accounting-process": "bookkeeping", "cafe-ops.invoice": "bookkeeping.invoice" },
   "root": "cafe-orchestrator",
@@ -18,9 +18,23 @@
     "enable": { "tools": ["supplier.send-order"], "schedules": ["weekly-inventory"], "auto_spawn": true },
     "wip": { "per_state": { "purchase.approval": 5 }, "description": "No more than five orders wait for a manager at once: a limit on a human-owned state." },
     "signatures": {
-      "require_for": ["approvals", "spending", "overrides"],
+      "require_for": ["approvals", "spending", "overrides", "delegations"],
       "min_assurance": "hardware-bound",
       "user_verified": "required"
+    },
+    "delegation": {
+      "allow": [
+        { "acts": ["approvals"], "role": "manager", "to": ["cafe-orchestrator"],
+          "ceiling": [ { "guard": "field", "name": "amount", "lte": 1000 } ],
+          "description": "A manager may let the orchestrator approve orders up to 1,000 EUR; a granted delegation may be stricter, for example 500 EUR per order and 2,000 EUR a week." },
+        { "acts": ["transitions"], "states": ["purchase.approval"], "to": ["cafe-orchestrator"],
+          "ceiling": [ { "guard": "field", "name": "amount", "lte": 1000 } ],
+          "description": "The orchestrator may then send the approved order on the manager's behalf." }
+      ],
+      "never": [
+        { "acts": ["transitions"], "states": ["purchase.escalated", "purchase.receiving"],
+          "description": "A supplier problem and the receipt of goods always need a manager." }
+      ]
     },
     "data": { "billing": ["subscription", "local"] }
   }
