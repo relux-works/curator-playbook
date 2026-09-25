@@ -213,7 +213,13 @@
           "description": "Inline work without a Change Request finishes on acceptance (invariant 1's inline route)."
         },
         { "from": "accepted", "to": "done", "on": { "event": "delivery.integrated" }, "description": "Emitted for every element of the integration unit when the story lands." },
-        { "from": "accepted", "to": "development", "on": { "event": "delivery.rework-started" }, "description": "A rollback of the accepted revision (landed rework, invalidation)." },
+        {
+          "from": "accepted",
+          "to": "development",
+          "on": { "event": "delivery.rework-started" },
+          "limit": { "max": 2, "then": "escalated" },
+          "description": "A rollback of the accepted revision (landed rework, invalidation). The loop development -> review -> accepted -> development is bounded here: the limit keeps one counter per element for this transition, so the third rollback of one element's accepted work goes to the operator instead of back to development (v4.2)."
+        },
         { "from": "escalated", "to": "development" },
         {
           "from": ["open", "development", "review"],
