@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/relux-works/curator-playbook/schema/playbook-v1.schema.json",
   "title": "Playbook.json (draft v4.0, schema_version 1)",
-  "description": "Process configuration for agent systems. DRAFT v4.0, the freeze candidate, not normative until frozen; see spec/process-configuration.md and, for who counts as a person and how a person's acts are shown, spec/trust.md. A playbook is data only: it never names a program, script, webhook or URL (spec section 8.5). The schema refuses URLs and shell syntax in hook arguments, schedule fields, event signers and package pins, and checks the arguments of the field, delivery.checks-passed and delivery.integration-evidence guards and of the delivery.integrate action; the per-hook argument schemas of the other provider hooks come with the provider modules (PC1). Keys starting with x- are reserved for extensions and ignored by the kernel; an x- name the schema gives a meaning (a custom capability, risk marker or signature category) is data (spec section 2.2).",
+  "description": "Process configuration for agent systems. DRAFT v4.1, the freeze candidate, not normative until frozen; see spec/process-configuration.md and, for who counts as a person and how a person's acts are shown, spec/trust.md in relux-works/curator-trust. A playbook is data only: it never names a program, script, webhook or URL (spec section 8.5). The schema refuses URLs and shell syntax in hook arguments, schedule fields, event signers and package pins, and checks the arguments of the field, delivery.checks-passed and delivery.integration-evidence guards and of the delivery.integrate action; the per-hook argument schemas of the other provider hooks come with the provider modules (PC1). Keys starting with x- are reserved for extensions and ignored by the kernel; an x- name the schema gives a meaning (a custom capability, risk marker or signature category) is data (spec section 2.2).",
   "type": "object",
   "required": [
     "$schema",
@@ -1106,7 +1106,7 @@
                       }
                     }
                   },
-                  "description": "Any installed agent role with one of these capabilities (today's open-ended roles)."
+                  "description": "Every role alias of the resolved roles map, in the version in force, whose capability is one of these (today's open-ended roles); never an installed skill that no alias binds. In legacy mode the committed .roles overlay supplies the aliases (spec section 6.1)."
                 }
               ]
             },
@@ -1866,7 +1866,7 @@
               "default": "audited"
             }
           },
-          "description": "Project only: side effects a package may propose but only the project turns on: schedules, automatic spawns, tool invocations, relaxations, standing answers and skill installation by agents (spec sections 8.5, 8.6, 9). Like every change to the process, a change takes effect once a person confirms it (spec section 2.4)."
+          "description": "Project only: side effects a package may propose but only the project turns on: schedules, automatic spawns, tool invocations, relaxations, standing answers and skill installation by agents (spec sections 8.5, 8.6, 9). A change takes effect once a person confirms it, except where a capability covers it: the schedules capability for its schedules, a tools:<name> capability for that tool (spec section 2.4)."
         },
         "signatures": {
           "type": "object",
@@ -1902,7 +1902,7 @@
                 "hardware-bound",
                 "attested"
               ],
-              "description": "The minimum key assurance of each required signature. Default hardware-bound whenever the project sets a signature policy, because an agent running as the operator's OS user can obtain software signatures from ssh-agent freely (spec section 4.2, spec/trust.md section 6).",
+              "description": "The minimum key assurance of each required signature. Default hardware-bound whenever the project sets a signature policy, because an agent running as the operator's OS user can obtain software signatures from ssh-agent freely (spec section 4.2, relux-works/curator-trust spec/trust.md section 6).",
               "default": "hardware-bound"
             },
             "user_verified": {
@@ -1979,10 +1979,10 @@
                   "description": "A value per category; categories not named keep their default."
                 }
               ],
-              "description": "Whether a required signature must show that a person acted. Defaults, whenever the project sets a signature policy: required for approvals, relaxations, halts and delegations; if-supported for spending, overrides, human-transitions and installs. A project sets one value for every category or a value per category. What satisfies each value is specified in spec/trust.md section 6; policy.signatures never governs a confirmation of a change to the process, whose floor no project lowers (spec/trust.md section 4)."
+              "description": "Whether a required signature must show that a person acted. Defaults, whenever the project sets a signature policy: required for approvals, relaxations, halts and delegations; if-supported for spending, overrides, human-transitions and installs. A project sets one value for every category or a value per category. What satisfies each value is specified in relux-works/curator-trust spec/trust.md section 6; policy.signatures never governs a confirmation of a change to the process, whose floor no project lowers (relux-works/curator-trust spec/trust.md section 4)."
             }
           },
-          "description": "Project only: which human acts need a signature, at what key assurance, and whether the signature must show user verification (spec section 4.2; what satisfies them is spec/trust.md section 6). Signed board acts other than confirmations and narrowing acts need the waggle amendment A1, implemented with CM2; until then the validator warns about each category in require_for that has no signable form (spec section 10). Granting or revoking a delegation (category delegations) is signed whenever the project sets a signature policy, listed or not. installs covers an installation of a skill by a person or a delegate."
+          "description": "Project only: which human acts need a signature, at what key assurance, and whether the signature must show user verification (spec section 4.2; what satisfies them is relux-works/curator-trust spec/trust.md section 6). Signed board acts other than confirmations and narrowing acts need the waggle amendment A1, implemented with CM2; until then the validator warns about each category in require_for that has no signable form (spec section 10). Granting or revoking a delegation (category delegations) is signed whenever the project sets a signature policy, listed or not. installs covers an installation of a skill by a person or a delegate."
         },
         "delegation": {
           "type": "object",
@@ -2330,11 +2330,11 @@
               "type": "string"
             }
           },
-          "description": "Project only: which human acts a person may delegate to which orchestrator roles, under which hard ceilings; like every change to the process, a change takes effect once a person confirms it (spec section 2.4). A person grants a delegation record within it, for acts their own principal could perform; delegated acts count as the grantor's only when they come from the grantor's own sessions or sessions the grant names, and only within the delegation and these ceilings; each delegated act counts as at most one principal toward a quorum, its grantor, and one delegate session counts once; everything else waits for the person. Without this key nothing may be delegated (spec section 4.2)."
+          "description": "Project only: which human acts a person may delegate to which orchestrator roles, under which hard ceilings; no capability covers it, so a change takes effect only once a person confirms it (spec section 2.4). A person grants a delegation record within it, for acts their own principal could perform; delegated acts count as the grantor's only when they come from the grantor's own sessions or sessions the grant names, and only within the delegation and these ceilings; each delegated act counts as at most one principal toward a quorum, its grantor, and one delegate session counts once; everything else waits for the person. Without this key nothing may be delegated (spec section 4.2)."
         },
         "confirmers": {
           "$ref": "#/$defs/identifier",
-          "description": "Project only: the group of the project's people map whose principals confirm changes to the process (spec section 2.4). Absent: the board's anchor operator (spec/trust.md section 3). It is read from the version in force, never from the version being confirmed; a confirmation is a signed record on the board that every machine verifies against the roster of the version it replaces (spec/trust.md section 4). In PC1 the trust component is a guardrail stub."
+          "description": "Project only: the group of the project's people map whose principals confirm changes to the process (spec section 2.4). Absent: the board's anchor operator (relux-works/curator-trust spec/trust.md section 3). It is read from the version in force, never from the version being confirmed; a confirmation is a signed record on the board that every machine verifies against the roster of the version it replaces (relux-works/curator-trust spec/trust.md section 4). In PC1 the trust component is a guardrail stub."
         },
         "delivery": {
           "type": "object",
@@ -2385,6 +2385,14 @@
                 }
               },
               "description": "Threshold = max(floor, factor x median rework)."
+            },
+            "run_write_boundary": {
+              "enum": [
+                "warn",
+                "refuse"
+              ],
+              "default": "warn",
+              "description": "What the delivery module does when a run writes outside its scope; under refuse, reviewer launch, verdict acceptance and delivery refuse until an operator clears the run's marker. Replaces task-board.config.json's spawn.worktree_isolation.run_write_boundary, which is read for one release as part of the resolved configuration (spec sections 2.1, 6.8, 14)."
             }
           },
           "description": "Delivery-module policy (development only; spec section 6.10)."
