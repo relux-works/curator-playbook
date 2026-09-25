@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/relux-works/curator-playbook/schema/playbook-v1.schema.json",
-  "title": "Playbook.json (draft v4.0, schema_version 1)",
-  "description": "Process configuration for agent systems. DRAFT v4.1, the freeze candidate, not normative until frozen; see spec/process-configuration.md and, for who counts as a person and how a person's acts are shown, spec/trust.md in relux-works/curator-trust. A playbook is data only: it never names a program, script, webhook or URL (spec section 8.5). The schema refuses URLs and shell syntax in hook arguments, schedule fields, event signers and package pins, and checks the arguments of the field, delivery.checks-passed and delivery.integration-evidence guards and of the delivery.integrate action; the per-hook argument schemas of the other provider hooks come with the provider modules (PC1). Keys starting with x- are reserved for extensions and ignored by the kernel; an x- name the schema gives a meaning (a custom capability, risk marker or signature category) is data (spec section 2.2).",
+  "title": "Playbook.json (draft v4.3, schema_version 1)",
+  "description": "Process configuration for agent systems. DRAFT v4.3, the freeze candidate, not normative until frozen; see spec/process-configuration.md and, for who counts as a person and how a person's acts are shown, spec/trust.md in relux-works/curator-trust. A playbook is data only: it never names a program, script, webhook or URL (spec section 8.5). The schema refuses URLs and shell syntax in hook arguments, schedule fields, event signers and package pins, and checks the arguments of the field, delivery.checks-passed and delivery.integration-evidence guards and of the delivery.integrate action; the per-hook argument schemas of the other provider hooks come with the provider modules (PC1). Keys starting with x- are reserved for extensions and ignored by the kernel; an x- name the schema gives a meaning (a custom capability, risk marker or signature category) is data (spec section 2.2).",
   "type": "object",
   "required": [
     "$schema",
@@ -77,6 +77,23 @@
       "additionalProperties": {
         "$ref": "#/$defs/qualified"
       }
+    },
+    "params": {
+      "type": "object",
+      "propertyNames": {
+        "$ref": "#/$defs/param-key"
+      },
+      "additionalProperties": {
+        "oneOf": [
+          {
+            "$ref": "#/$defs/param-declaration"
+          },
+          {
+            "$ref": "#/$defs/param-value"
+          }
+        ]
+      },
+      "description": "Template parameters (spec section 7.3). A template declares each tunable with its type and default ({ \"type\": \"limit\", \"default\": \"none\" }); a project sets values as plain values ({ \"rework_limit\": 30 }) without restating the transitions that use them. A project value wins over the template default. References are $name in limit.max, in on.after and in policy.wip counts."
     },
     "root": {
       "$ref": "#/$defs/identifier",
@@ -1247,7 +1264,15 @@
           "description": "A kernel, module, tool or declared external event (spec sections 6.3, 6.9)."
         },
         "after": {
-          "$ref": "#/$defs/duration"
+          "oneOf": [
+            {
+              "$ref": "#/$defs/duration"
+            },
+            {
+              "$ref": "#/$defs/param-ref"
+            }
+          ],
+          "description": "A duration in the source state, or a reference to a duration parameter (spec sections 6.2, 7.3)."
         }
       },
       "oneOf": [
@@ -1353,8 +1378,19 @@
           ],
           "properties": {
             "max": {
-              "type": "integer",
-              "minimum": 1
+              "oneOf": [
+                {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                {
+                  "const": "none"
+                },
+                {
+                  "$ref": "#/$defs/param-ref"
+                }
+              ],
+              "description": "After max firings for one element the transition leads to then instead. none leaves the loop unbounded, a deliberate choice recorded in the version; the validator warns about an unbounded cycle (spec sections 6.2, 7.3, 10). A parameter reference takes the value the project sets or the template's default."
             },
             "then": {
               "$ref": "#/$defs/identifier"
@@ -1364,7 +1400,7 @@
               "description": "Resolution recorded when the redirect enters a resolution state."
             }
           },
-          "description": "Loop limit: after max firings for one element, the transition leads to then instead."
+          "description": "Loop limit: after max firings for one element, the transition leads to then instead. then stays declared when max is none, so a project can set a bound later through the parameter."
         },
         "reopen": {
           "type": "boolean",
@@ -1526,8 +1562,15 @@
           "additionalProperties": false,
           "properties": {
             "board": {
-              "type": "integer",
-              "minimum": 1,
+              "oneOf": [
+                {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                {
+                  "$ref": "#/$defs/param-ref"
+                }
+              ],
               "description": "Elements in non-initial, non-terminal states of the whole board."
             },
             "per_role": {
@@ -1536,8 +1579,15 @@
                 "$ref": "#/$defs/qualified"
               },
               "additionalProperties": {
-                "type": "integer",
-                "minimum": 1
+                "oneOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  {
+                    "$ref": "#/$defs/param-ref"
+                  }
+                ]
               },
               "description": "Per role: elements whose current state the role owns, or whose assignment.role is the role."
             },
@@ -1547,8 +1597,15 @@
                 "$ref": "#/$defs/hook-name"
               },
               "additionalProperties": {
-                "type": "integer",
-                "minimum": 1
+                "oneOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  {
+                    "$ref": "#/$defs/param-ref"
+                  }
+                ]
               },
               "description": "Per state: elements in the state, named <workflow>.<state>, or a bare state name for that state in every workflow."
             },
@@ -1782,6 +1839,76 @@
               ]
             }
           }
+        },
+        "dreams": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "windows": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/utc-window"
+              },
+              "uniqueItems": true,
+              "description": "When this process's orchestrators may dream, in UTC. Absent: the main loop's own schedule."
+            },
+            "budget": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "tokens_per_night": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "minutes_per_night": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              },
+              "description": "The per-night token and time budget of this process's dreams."
+            },
+            "conditions": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "idle_minutes": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "description": "No attached person and no urgent queue for at least this long."
+                },
+                "quota_min_percent": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 100,
+                  "description": "Subscription quota remaining above this share."
+                },
+                "use_expiring_quota": {
+                  "type": "boolean",
+                  "description": "Also dream on quota that expires before its reset, whatever remains."
+                },
+                "local_engine": {
+                  "type": "boolean",
+                  "description": "Also dream when a local engine is ready or ensurable."
+                },
+                "on_ac_power": {
+                  "type": "boolean",
+                  "description": "Dream only on AC power; true by default."
+                }
+              },
+              "description": "Conditions that must all hold before a dream starts; the capacity conditions are alternatives (quota above the share, expiring quota, or a local engine)."
+            },
+            "after": {
+              "enum": [
+                "resume",
+                "stay-parked"
+              ],
+              "description": "What the session host does when the dream ends: resume the normal session (default) or leave it parked."
+            },
+            "description": {
+              "type": "string"
+            }
+          },
+          "description": "Dream policy (spec section 6.13; proposed). Dreams run only while the capability grant of kind dreams is in force for the process (curator-trust section 16). Node-wide capacity for dreams is the operator's (runtimes.toml)."
         },
         "effort_floor": {
           "type": "object",
@@ -2820,6 +2947,56 @@
       "type": "string",
       "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]-([01][0-9]|2[0-3]):[0-5][0-9]$",
       "description": "A time-of-day window in UTC, HH:MM-HH:MM, the end excluded; an end earlier than the start crosses midnight (spec section 9)."
+    },
+    "param-key": {
+      "type": "string",
+      "pattern": "^([a-z][a-z0-9-]*\\.)?[a-z][a-z0-9_]*$",
+      "description": "A template parameter's name, snake_case; in a composition a project may qualify it with the playbook's name, for example dev-cycle.rework_limit (spec section 7.3)."
+    },
+    "param-ref": {
+      "type": "string",
+      "pattern": "^\\$([a-z][a-z0-9-]*\\.)?[a-z][a-z0-9_]*$",
+      "description": "A reference to a template parameter, for example $rework_limit. The validator checks that the parameter is declared and that its type fits the place (spec section 7.3)."
+    },
+    "param-value": {
+      "oneOf": [
+        {
+          "type": "integer",
+          "minimum": 1
+        },
+        {
+          "const": "none"
+        },
+        {
+          "$ref": "#/$defs/duration"
+        }
+      ],
+      "description": "A parameter's value: a count of at least 1, none (unbounded, a limit only: a deliberate choice recorded in the version), or an ISO 8601 duration (spec section 7.3)."
+    },
+    "param-declaration": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "default"
+      ],
+      "properties": {
+        "type": {
+          "enum": [
+            "limit",
+            "count",
+            "duration"
+          ],
+          "description": "limit: a loop limit's max, a count or none; count: a count, for example a work-in-progress limit; duration: an ISO 8601 duration, for example a timer."
+        },
+        "default": {
+          "$ref": "#/$defs/param-value"
+        },
+        "description": {
+          "type": "string"
+        }
+      },
+      "description": "A template declares a tunable with its type and default (spec section 7.3)."
     }
   }
 }

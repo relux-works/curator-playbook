@@ -1,9 +1,10 @@
 {
   "$schema": "../../schema/playbook-v1.schema.json",
   "schema_version": 1,
-  "description": "A project running Scrum cadence over dev-cycle delivery. Both playbooks are admitted by uses; the work-item slot is bound to dev-cycle's story and the delivery slot to dev-cycle itself; the scrum orchestrator is the root and dev-cycle's orchestrator keeps story-level states. Only this file, read at its committed revision, enables automatic spawns, binds people, delegates the estimate fields (by binding the work-item slot), bounds the elements in progress, and sets effort floors and the data policy, which restricts the project to the models its company admits. As a PC1 demo it sets no signature policy: signed board acts arrive with the waggle amendment (CM2), and before that a required signature would leave the sponsor's states unleavable (spec section 4.2). Its check sets run locally (task-board.config.json).",
+  "description": "A project running Scrum cadence over dev-cycle delivery. Both playbooks are admitted by uses; the work-item slot is bound to dev-cycle's story and the delivery slot to dev-cycle itself; the scrum orchestrator is the root and dev-cycle's orchestrator keeps story-level states. Only this file, read at its committed revision, enables automatic spawns, binds people, delegates the estimate fields (by binding the work-item slot), bounds the elements in progress, bounds dev-cycle's rework loop at 30 rounds through its parameter without restating the transition (spec section 7.3), and sets effort floors and the data policy, which restricts the project to the models its company admits. As a PC1 demo it sets no signature policy: signed board acts arrive with the waggle amendment (CM2), and before that a required signature would leave the sponsor's states unleavable (spec section 4.2). Its check sets run locally (task-board.config.json).",
   "uses": ["dev-cycle", "scrum"],
   "bind": { "scrum.work-item": "story", "scrum.delivery": "dev-cycle" },
+  "params": { "dev-cycle.rework_limit": 30 },
   "root": "scrum-orchestrator",
   "people": {
     "operators": { "principals": ["op:*@acme"], "description": "Everyone who operates this project." },

@@ -2,7 +2,24 @@
   "$schema": "../schema/playbook-v1.schema.json",
   "schema_version": 1,
   "name": "dev-cycle",
-  "description": "Software delivery with a producer-reviewer loop, a refuter on specifications and decisions as board memory. Change Request work is reviewed only after publication and waits in accepted until its story integrates; inline work without a Change Request is reviewed and finishes directly, or skips review when its review field says none, so the delivery invariants hold (spec section 6.10). For Change Request work the check set handoff gates review and the check set landing gates the story's integration; inline work runs no suite (spec section 6.12). A blocked element records why and where it was blocked, resumes there, and repeated blocks escalate to a person. Template of the curator-playbook-dev-cycle package (skills/orchestrator/data/playbook.json).",
+  "description": "Software delivery with a producer-reviewer loop, a refuter on specifications and decisions as board memory. Change Request work is reviewed only after publication and waits in accepted until its story integrates; inline work without a Change Request is reviewed and finishes directly, or skips review when its review field says none, so the delivery invariants hold (spec section 6.10). For Change Request work the check set handoff gates review and the check set landing gates the story's integration; inline work runs no suite (spec section 6.12). A blocked element records why and where it was blocked, resumes there, and repeated blocks escalate to a person. Loop limits are parameters a project tunes (params), and the rework and rollback loops are unbounded by default, as today. Template of the curator-playbook-dev-cycle package (skills/orchestrator/data/playbook.json).",
+  "params": {
+    "rework_limit": {
+      "type": "limit",
+      "default": "none",
+      "description": "How many requests for changes one element may take before it escalates to the operator. none by default, as today: some work legitimately needs thirty rounds, and delivery loop detection stays the soft signal (spec sections 6.2, 7.3). A project sets it, for example { \"rework_limit\": 5 }."
+    },
+    "rollback_limit": {
+      "type": "limit",
+      "default": "none",
+      "description": "How many rollbacks of one element's accepted work (landed rework, invalidation) before it escalates. none by default, as today; the validator warns about the unbounded cycle development -> review -> accepted -> development (spec section 10)."
+    },
+    "block_limit": {
+      "type": "limit",
+      "default": 3,
+      "description": "How many times one element may be blocked before the next block goes to the operator."
+    }
+  },
   "root": "orchestrator",
   "roles": {
     "orchestrator": { "skill": "dev-orchestrator", "capability": "orchestrator" },
@@ -201,8 +218,8 @@
           "from": "review",
           "to": "development",
           "guards": [{ "guard": "verdict", "is": "changes_requested" }],
-          "limit": { "max": 3, "then": "escalated" },
-          "description": "Rework. The fourth request for changes escalates instead."
+          "limit": { "max": "$rework_limit", "then": "escalated" },
+          "description": "Rework, bounded by the parameter rework_limit, unbounded by default. With a bound of N, the request for changes after the Nth escalates instead."
         },
         { "from": "review", "to": "escalated", "guards": [{ "guard": "verdict", "is": "stop_the_line" }] },
         { "from": "review", "to": "accepted", "via": "accept_cr", "guards": ["delivery.cr-accepted"] },
@@ -217,15 +234,15 @@
           "from": "accepted",
           "to": "development",
           "on": { "event": "delivery.rework-started" },
-          "limit": { "max": 2, "then": "escalated" },
-          "description": "A rollback of the accepted revision (landed rework, invalidation). The loop development -> review -> accepted -> development is bounded here: the limit keeps one counter per element for this transition, so the third rollback of one element's accepted work goes to the operator instead of back to development (v4.2)."
+          "limit": { "max": "$rollback_limit", "then": "escalated" },
+          "description": "A rollback of the accepted revision (landed rework, invalidation). The loop development -> review -> accepted -> development is bounded here when the project sets rollback_limit: the limit keeps one counter per element for this transition, so the rollback after the Nth goes to the operator instead of back to development. Unbounded by default, as today (v4.3)."
         },
         { "from": "escalated", "to": "development" },
         {
           "from": ["open", "development", "review"],
           "to": "blocked",
-          "limit": { "max": 3, "then": "escalated" },
-          "description": "Every entry records block_kind (the state requires it), and the kernel records the source state. The limit keeps one counter per element for this transition, whichever state it leaves: the fourth block of one element goes to the operator instead."
+          "limit": { "max": "$block_limit", "then": "escalated" },
+          "description": "Every entry records block_kind (the state requires it), and the kernel records the source state. The limit, block_limit (3 by default), keeps one counter per element for this transition, whichever state it leaves: with the default, the fourth block of one element goes to the operator instead."
         },
         {
           "from": "blocked",
