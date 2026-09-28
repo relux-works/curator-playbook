@@ -1,6 +1,6 @@
 # Process configuration: specification
 
-Status: **DRAFT v4.5**, 2026-09-28, the freeze candidate. Not normative until frozen. Roadmap: `wiki/roadmap/ecosystem-roadmap.md` (process-configuration line). Track: [`track.md`](track.md). Schema: [`../schema/playbook-v1.schema.json`](../schema/playbook-v1.schema.json). Examples: [`../examples/`](../examples/). Trust: [`trust.md`](https://github.com/relux-works/curator-trust/blob/main/spec/trust.md) in relux-works/curator-trust.
+Status: **DRAFT v4.6**, 2026-09-28, the freeze candidate. Not normative until frozen. Roadmap: `wiki/roadmap/ecosystem-roadmap.md` (process-configuration line). Track: [`track.md`](track.md). Schema: [`../schema/playbook-v1.schema.json`](../schema/playbook-v1.schema.json). Examples: [`../examples/`](../examples/). Trust: [`trust.md`](https://github.com/relux-works/curator-trust/blob/main/spec/trust.md) in relux-works/curator-trust.
 
 A team's process is code today. task-board's element types, statuses, gates and roles are compiled into its kernel, so a team that works differently — or a cafe ordering supplies, or a group formalizing a proof — cannot describe its process without changing the board. This specification answers one question: how does a project state who does what, which kinds of work exist and how each moves, in one file that every teammate can share and a validator can check before anything runs? It covers that file, its schema, extension and composition, distribution through Curator, model needs, and validation. The agent loop, an always-on scheduler and the goal ledger stay outside it (§1).
 
@@ -655,6 +655,16 @@ A tool's verdict must not come from the actor that triggered it. In formal missi
 - A person may leave a tool-owned state through its declared manual exits (§4.2 rule 2); a running invocation is then cancelled.
 - A tool runs only when the project lists it in `policy.enable.tools` of `narrowed(version in force)` (§2.4), so a tool a person has disabled by a narrowing act does not run, and only from a skill installed through Curator (§8.4, §8.5). Entering a state whose tool the project does not list is refused.
 - **In a dream** (§6.13) the executor adds `--dream` to every invocation and refuses a tool whose provider does not declare dream support. *proposed*
+
+### 6.11.1 Tool outputs, receipts and assisted tools *(proposed, 2026-09-28, PC3)*
+
+Found by expressing a real music-video production as a playbook (`examples/music-video/`). A tool often knows more than pass or fail, some tools spend money whose final amount only the provider knows, and some need a person in the middle of a run.
+
+- **Outputs.** A tool binding may declare `outputs`: fields of the element's type that the tool reports in a typed block of its standard output. The kernel alone writes them, only on the invocation's own `tool.passed` or `tool.failed`, and records them with the outcome, so a guard, a delegation ceiling or a later brief can read them. Examples: where a generated clip's soundtrack left the reference vocal, the image the tool picked, a measured score. A field a `field` guard reads may be an output; no run or person writes it while the element is in the tool's state. An output the block omits or mistypes fails the invocation with the reason `bad-output`.
+- **Receipts.** A tool that spends declares `spends` with the money field its approvals and ceilings read. It reports a receipt: the provider's reference, the amount actually charged and the currency. The kernel reconciles every budget of the delegation that approved the spending with the receipt instead of the estimate. A receipt above the approved amount by more than the grant's tolerance opens a hold for the approver. An invocation with no receipt keeps the estimate counted and is reported as an unknown outcome, never as free. The entry key on standard input is the idempotency key the provider call carries, so a retried invocation is not charged twice where the provider honours it.
+- **Assisted tools.** A tool may declare `assist`: in the middle of a run it can ask a person to act (solve a captcha, sign in again, confirm on a device) through a typed request. The element stays in the tool's state, the request reaches the owner of the named human role through their inbox, and the invocation waits up to the binding's timeout instead of failing. A tool that needs a person's own signed-in session runs under that person's operating-system account, never under the agents' account (curator-trust `spec/trust.md` §12), and the project names whose session it uses.
+
+The schema follows when these are adopted.
 
 ### 6.12 Check sets *(decided 2026-09-24)*
 
@@ -1326,6 +1336,7 @@ H4 (keep the effort floor), H6 (the demos and the PC rows) and H8 (one owner per
     - It is the formal twin of the refuter (§12): the refuter finds contradictions by reasoning over everything, and the check proves them over what has been formalized.
     - Limits: only formalized statements are checked, and a wrong formalization is the main risk, so a person or the refuter reviews every formal statement, and a project starts with a small vocabulary (wiki `research/verifiable-process-properties.md`).
 19. **Dream mode details** (§6.13). Entry is proposed in v4.3: a `dreams` capability, `policy.dreams`, park, dream profile, resume. Open are how a dream is scoped (an element, a workflow, a whole process), how long its sandbox lives, whether a project may require a dream rehearsal before a structure change is offered for confirmation, and how a role's dream profile is packaged with its role profile (item 16).
+20. **Tool outputs, receipts and assisted tools** (§6.11.1). Proposed on 2026-09-28 for PC3. Open: the output block's format on standard output, a grant's tolerance for receipts above the approved amount, and how an assisted request is shown on the phone and at the terminal.
 
 **What this means for PC1.** PC1 can start: everything it implements is decided or has a stated default. Item 13 is decided, so the classification of §2.4 is capability coverage. PC1 ships the trust component as a guardrail stub; the mechanisms of [`trust.md`](https://github.com/relux-works/curator-trust/blob/main/spec/trust.md) arrive in PC3. The gates on later work are these:
 
@@ -1690,3 +1701,14 @@ Proposed on 2026-09-28 from the landing work of the cocoaskills orchestrator, wh
 | Trunk verification after landing: `after_landing` hosted sets, the element waits for a green trunk pipeline on the landed head, red opens a linked Bug | §6.12 |
 | Append-only files merge with git's `merge=union` from the project's `.gitattributes`; the landing evidence lists them | §6.12 |
 | Hosting providers `github` and `gitlab` with one contract; the first implementation is the `delivery` tool in relux-works/skill-delivery | §6.12, §6.11 |
+
+## 32. Change log: v4.5 → v4.6
+
+Proposed on 2026-09-28 from the music-video example:
+
+| Change | Where |
+| --- | --- |
+| Tool outputs: typed fields a tool reports and only the kernel writes | §6.11.1 |
+| Receipts: the amount actually charged reconciles the delegation budgets; a missing receipt is an unknown outcome, never free | §6.11.1 |
+| Assisted tools: a tool may ask a person mid-run and wait; a tool that uses a person's own session runs under that person's account | §6.11.1 |
+| Open item 20 | §17.3 |

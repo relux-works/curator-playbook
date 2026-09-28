@@ -48,6 +48,8 @@ Both validate against [`../../schema/playbook-v1.schema.json`](../../schema/play
 
 ## Gaps this example found
 
+Items 1–3 are now proposed for PC3 in spec §6.11.1 (DRAFT v4.6).
+
 1. **Tool results as fields.** `sync.check` knows where a clip diverged and `clip.generate` knows what it actually cost, but a tool today reports only pass or fail plus evidence. Proposed: a tool may declare output fields that the kernel writes from its result (`diverged_at`, the actual `cost`), so guards, ceilings and later briefs read them.
 2. **Actual spending against the budget.** The ceiling reads the estimated cost at approval; the provider's receipt should reconcile the budget. This joins the open item on unknown outcomes and receipts of side-effecting tools.
 3. **Tools that need a person mid-run.** A captcha or a lost sign-in in the director's browser fails the invocation here and routes to a human-owned `assist` state. An assisted tool that pauses and rings the person would keep the invocation alive. The same case raises a trust question: a tool that uses the director's signed-in browser must run under the director's account, not the agents'.
