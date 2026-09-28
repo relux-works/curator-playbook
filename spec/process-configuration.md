@@ -1,6 +1,6 @@
 # Process configuration: specification
 
-Status: **DRAFT v4.4**, 2026-09-27, the freeze candidate. Not normative until frozen. Roadmap: `wiki/roadmap/ecosystem-roadmap.md` (process-configuration line). Track: [`track.md`](track.md). Schema: [`../schema/playbook-v1.schema.json`](../schema/playbook-v1.schema.json). Examples: [`../examples/`](../examples/). Trust: [`trust.md`](https://github.com/relux-works/curator-trust/blob/main/spec/trust.md) in relux-works/curator-trust.
+Status: **DRAFT v4.5**, 2026-09-28, the freeze candidate. Not normative until frozen. Roadmap: `wiki/roadmap/ecosystem-roadmap.md` (process-configuration line). Track: [`track.md`](track.md). Schema: [`../schema/playbook-v1.schema.json`](../schema/playbook-v1.schema.json). Examples: [`../examples/`](../examples/). Trust: [`trust.md`](https://github.com/relux-works/curator-trust/blob/main/spec/trust.md) in relux-works/curator-trust.
 
 A team's process is code today. task-board's element types, statuses, gates and roles are compiled into its kernel, so a team that works differently — or a cafe ordering supplies, or a group formalizing a proof — cannot describe its process without changing the board. This specification answers one question: how does a project state who does what, which kinds of work exist and how each moves, in one file that every teammate can share and a validator can check before anything runs? It covers that file, its schema, extension and composition, distribution through Curator, model needs, and validation. The agent loop, an always-on scheduler and the goal ledger stay outside it (§1).
 
@@ -683,6 +683,9 @@ Evidence that a machine produces for delivery — tests, linters, builds — com
 - A set a playbook names must be defined in the code owner's `task-board.config.json`. In one repository both files are committed, so the validator checks it portably (§10); when the board and the code live in different repositories (§2.1), each Story's sets come from its code owner's file, and the check runs when that Story's code repository is known. An undefined set refuses integration (§6.3).
 - **The definition in force.** The check sets a playbook names are part of the resolved configuration (§2.4): the kernel reads their `where`, `commands`, `hosted` and `by_task_class` from `task-board.config.json` at the proposed head, or from the code owner's default branch, and runs the definition of the version in force. It never reads a set from the working tree or from the tree under evaluation, so a producer cannot empty the set that gates its own Change Request, and emptying a set is a change that waits for a person.
 - Today's landing-gate suite, `spawn.worktree_isolation.validation.commands`, is a local `landing` set (§14).
+- **Trunk verification after landing** *(proposed, 2026-09-28)*. A landing is not the end of evidence: the hosting provider may run a different pipeline on the trunk push than on the reviewed head, and a trunk can go red after a green review. A set may name `"after_landing": true` together with `hosted`. The delivery module then waits for the provider's trunk pipeline on the landed head and records the result bound to that head. The element stays in its landing state until the result is green; `unknown` is never green. A red result opens a Bug linked to the landed element through `handoff`, and does not reopen the reviewed work. dev-cycle names such a set for its integration.
+- **Merge policy for append-only files** *(proposed, 2026-09-28)*. Files that only grow, such as a changelog or a logbook, conflict on almost every landing. The project declares them in its `.gitattributes` with git's built-in `merge=union` driver; the delivery module honours it when it lays an accepted candidate over a moved trunk and lists every file merged that way in the landing evidence, so the reviewer of the landing checks them. The kernel adds no merge code of its own.
+- **Hosting providers** *(proposed, 2026-09-28)*. `hosted.provider` takes `github` or `gitlab`. The provider supplies: the required checks for an exact head, the head of a pull or merge request, a review verdict (a comment review where the host refuses self-approval, as GitHub does; the approval API where a pipeline requires an approval, as some GitLab pipelines do through a project token), and the trunk pipeline for a landed head. Credentials stay in the provider CLI's own store; the evidence names a missing variable, never its value. The first implementation is the tool `delivery` (relux-works/skill-delivery), which the landing state's tool owner calls (§6.11); until PC3 the current board calls the same tool and records the landing with `task-board worktree close-landed`.
 
 ### 6.13 Dream mode *(proposed, 2026-09-25)*
 
@@ -1677,3 +1680,13 @@ v4.4 applies the command-line shape the operator adopted on 2026-09-27 (wiki `re
 | The tick timer's installer is `task-board tick --install-timer` | §6.9, §15 |
 | The per-role Curator profile at spawn is `spawn --profile`, with `spawn.profile` in the configuration (was `spawn.context_profile`); the person's spelling of a command-only install is `curator global add <skill> --commands-only` | §8.1, §8.3 |
 | Beekeeping words only in `keeper`'s nouns and the apiary's directories | §16 |
+
+## 31. Change log: v4.4 → v4.5
+
+Proposed on 2026-09-28 from the landing work of the cocoaskills orchestrator, where two releases shipped with a red trunk and changelog conflicts were resolved by hand:
+
+| Change | Where |
+| --- | --- |
+| Trunk verification after landing: `after_landing` hosted sets, the element waits for a green trunk pipeline on the landed head, red opens a linked Bug | §6.12 |
+| Append-only files merge with git's `merge=union` from the project's `.gitattributes`; the landing evidence lists them | §6.12 |
+| Hosting providers `github` and `gitlab` with one contract; the first implementation is the `delivery` tool in relux-works/skill-delivery | §6.12, §6.11 |
