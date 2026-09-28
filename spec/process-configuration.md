@@ -1468,7 +1468,7 @@ H4 (keep the effort floor), H6 (the demos and the PC rows) and H8 (one owner per
 25. **Typed findings and helper answers** (§6.16): their schema, delivered with the provider modules in PC1.
 26. **Mutation evidence and reviewer calibration** (§6.16). Open:
     - how the changed ranges reach the mutation commands, and the fields of their result;
-    - who may mark an equivalent mutant, and whether the mark needs a second reviewer;
+    - whether a reviewer's mark of an equivalent mutant needs a second reviewer;
     - how many plants a recall needs before it counts, and whether it is kept per class or overall;
     - how a seeded review maps its findings back to the lines of the real revision;
     - the defect classes dev-cycle ships, and whether they are drawn from the project's escaped defects;
