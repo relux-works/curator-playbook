@@ -1,6 +1,6 @@
 # Process configuration: specification
 
-Status: **DRAFT v4.7**, 2026-09-29, the freeze candidate. Not normative until frozen. Roadmap: `wiki/roadmap/ecosystem-roadmap.md` (process-configuration line). Track: [`track.md`](track.md). Schema: [`../schema/playbook-v1.schema.json`](../schema/playbook-v1.schema.json). Examples: [`../examples/`](../examples/). Trust: [`trust.md`](https://github.com/relux-works/curator-trust/blob/main/spec/trust.md) in relux-works/curator-trust.
+Status: **DRAFT v4.8**, 2026-09-29, the freeze candidate. Not normative until frozen. Roadmap: `wiki/roadmap/ecosystem-roadmap.md` (process-configuration line). Track: [`track.md`](track.md). Schema: [`../schema/playbook-v1.schema.json`](../schema/playbook-v1.schema.json). Examples: [`../examples/`](../examples/). Trust: [`trust.md`](https://github.com/relux-works/curator-trust/blob/main/spec/trust.md) in relux-works/curator-trust.
 
 A team's process is code today. task-board's element types, statuses, gates and roles are compiled into its kernel, so a team that works differently — or a cafe ordering supplies, or a group formalizing a proof — cannot describe its process without changing the board. This specification answers one question: how does a project state who does what, which kinds of work exist and how each moves, in one file that every teammate can share and a validator can check before anything runs? It covers that file, its schema, extension and composition, distribution through Curator, model needs, and validation. The agent loop, an always-on scheduler and the goal ledger stay outside it (§1).
 
@@ -719,6 +719,7 @@ Evidence that a machine produces for delivery — tests, linters, builds — com
   - `commands` are required when `where` includes `local`. An explicitly empty list is a recorded decision to run nothing, as today.
   - `hosted` names the hosting provider whose required checks must pass on the exact head that lands; it is required when `where` includes `hosted`.
   - `by_task_class` gives a set a variant per task class.
+  - `mutation` adds mutation evidence to a set *(proposed, 2026-09-29, §6.16)*.
 - **Local sets run outside the gated actor.** A check set's evidence gates the actor's own transition, so, like a tool (§6.11), it never runs in that actor's process or environment. The kernel's executor, which PC1 ships (§6.11), runs a local set in a clean checkout of the exact tree under evaluation, with a sanitized environment (a fixed `PATH` of the managed command directory and system directories, no variables inherited from agent runs), under the machine's capacity for concurrent check sets (§2.3), and records the executor, the tree and each command's exit status with the evidence.
 - **Evidence binds to the revision.** A local set binds to the tree it ran on, a hosted set to the head whose required checks the provider reported. The delivery module produces the evidence: it runs `handoff` when a producer publishes a Change Request revision, runs `landing` again at integration when the bound evidence is missing or stale, and collects a hosted set's result from the provider. The guard only checks that the evidence exists.
 - **Inline work runs no suite.** An element without a Change Request has no revision for a set to check, so `delivery.checks-passed` passes for it and dev-cycle's inline-only routes name no set, as today's landing-gate suite binds only to Change Request builds and integration.
@@ -759,7 +760,7 @@ A process can be rehearsed before it is trusted with the real world: a new playb
     - rehearsal reports.
   - **After.** As `policy.dreams.after` says, the host either resumes the normal session from its goal, its park note and a pointer to the dream's report, or leaves it parked.
   - **Waking.** A real high-priority doorbell, such as a message from a person, wakes the dreamer. The host parks the dream in its own state and resumes the normal session.
-- **Uses:** rehearsing a new or changed process before its version takes effect; the nightly offline cycle; training and evaluating agents and roles; speculative planning; safe demos; red-team exercises against a process.
+- **Uses:** rehearsing a new or changed process before its version takes effect; the nightly offline cycle; training and evaluating agents and roles; calibrating reviewers with seeded defects (§6.16); speculative planning; safe demos; red-team exercises against a process.
 - **Precedent.** task-board already has a development-only fault injector for provider limits, `internal/limitsimulate`, which arms a token and captures what would have been sent instead of sending it. Dream mode generalizes the idea to every tool a process uses.
 - **Open** (§17.3 item 19): how a dream is scoped (an element, a workflow, a whole process), how long its sandbox lives, whether a project may require a dream rehearsal before a structure change is offered for confirmation, and how dream profiles are packaged (item 16).
 
@@ -810,6 +811,36 @@ The kernel gets hooks only. Platform work (uploads, per-platform formats, releas
 - **Seams between siblings.** Parallel siblings, such as chapters, meet at seams. A parent checks them in a `seams` state after `children.terminal`, owned by a reviewer or a tool. This needs no new mechanism, and the generality vectors test it as a pattern (§11).
 - **Write scopes.** An agent-owned state may declare `writes`: path patterns, relative to the execution root, that its runs may change, for example one chapter file per animator. The delivery module's run write boundary enforces them as it enforces the Story worktree (§6.8).
 - **Model needs.** The `capabilities` of the needs vocabulary gain `vision`, `video-input` and `audio-input`, which the model registry must carry (skill-agents-management). A reviewer of rendered frames `require`s `vision` (§9). One study's machine checks all passed on a render whose character faced away from the camera; only a review of the frames caught it.
+- **Mutation evidence** *(proposed, 2026-09-29)*. A green suite shows that the tests pass, not that they would fail if the change were wrong, and agents rewrite code and its tests together. A check set (§6.12) may add a `mutation` block:
+
+  ```json
+  "handoff": { "where": "local", "commands": ["make test-fast"],
+               "mutation": { "commands": ["make mutants"], "scope": "changed", "min_killed": 0.8 } }
+  ```
+
+  - The kernel's executor runs the mutation commands after the set's own commands pass, in the same clean checkout. A mutant is one small deliberate change to the code, such as a flipped condition, a removed call or a moved boundary. It is *killed* when a test fails.
+  - `scope: "changed"` limits the mutants to the lines the revision changed, and the executor hands those ranges to the commands. `scope: "all"` mutates the whole tree.
+  - The commands report killed, survived and timed-out mutants in the tool output format (§6.11.1). A timeout counts as killed, as mutation tools count it.
+  - `delivery.checks-passed` passes only when the killed share reaches `min_killed`, which may be a parameter (§6.14).
+  - Each survivor reaches the producer as a typed finding: the file and line, the change, and the problem that no test fails with it.
+  - A survivor that changes no behaviour, an *equivalent* mutant, may be marked so in the reviewer's verdict with a reason. The mark is a finding like any other, and the next review sees it.
+  - `mutation` belongs to the set's definition in force (§6.12), so a producer cannot lower `min_killed` or narrow the scope for its own revision.
+  - A reviewer may also attach targeted mutants to its verdict: a change to the code a guard protects, and the run that kills it. They are the strongest evidence that the tests pin a gate, and today's task-board reviewers already produce them.
+- **Reviewer calibration with seeded defects** *(proposed, 2026-09-29)*. The defects a reviewer found say nothing about the ones it missed. Seeded defects make its recall measurable.
+  - **The seeder** is a tool or an agent role that a state binds (§6.11). It plants known defects of declared classes in a copy of a candidate: a swallowed error, a moved boundary, a weakened assertion, a claim without a source, a frame whose subject faces away. It plants at least three per class, so that one lucky find is not a measurement.
+  - **The plants stay sealed.** The kernel keeps their list where the reviewer's run cannot read it. The copy is built on the candidate's base, so the unseeded candidate is not reachable from the reviewer's sandbox, and the copy's history carries no trace of the plants. A sandbox that cannot hide the original gets no seeded copy, so neither a calibration nor a seeded review runs in it.
+  - **Calibration runs** review seeded copies of accepted candidates, normally in a dream (§6.13) and within the dream budget. The reviewer knows it is rehearsing and that planted defects may be present, as every dreamer knows it is dreaming, but not where they are or how many. Its verdict counts for nothing outside the dream; only the measurement is kept.
+  - **Seeded reviews** are optional. A review state may declare `seeded`, so that real reviews carry plants too:
+
+    ```json
+    "review": { "owner": "reviewer",
+                "seeded": { "seeder": "seeder", "classes": ["swallowed-error", "boundary", "weak-assertion"], "per_class": 3 } }
+    ```
+
+    The reviewer is told that the revision may contain planted defects, and it reviews a seeded copy. Findings that match plants measure this review, the others go to the producer, and the plants never reach the candidate. The guard `{ "guard": "review.recall", "gte": 0.66 }` keeps a review that missed too many plants from counting, and the element is reviewed again.
+  - **Recall is measured.** Each calibration and seeded review adds to the recall of its role on its row, at its effort and with its role profile, per class and overall. Roles require or prefer it through the need term `recall` (§9). A new model, effort or role profile starts a new measurement.
+  - **What remains.** From a seeded review's recall and the real defects it found, the kernel records an estimate of the real defects still in the candidate: a reviewer that found half the plants probably missed about as many real defects as it found. The estimate assumes that plants are as hard to find as real defects; classes taken from defects that escaped earlier reviews bring it closer. It is advisory: a guard may route to a second review on it, and it never accepts anything.
+  - **Any review.** Nothing here is specific to code. A research verifier is calibrated with planted false claims, a reviewer of rendered frames with planted frame defects, and a refuter of a specification with planted contradictions. Blind helpers that judge siblings (§4.2) are calibrated the same way.
 
 ## 7. Extension and composition
 
@@ -1025,6 +1056,7 @@ A committed file must not break for a teammate with other harnesses, so roles st
 | `pp` | prompt processing speed in tokens per second, a range |
 | `tg` | token generation speed in tokens per second, a range |
 | `ttft` | time to first token in seconds, a range |
+| `recall` | the measured share of planted defects that this role's runs on the row found, a range (§6.16) *(proposed, 2026-09-29)* |
 
 In `require` a term must hold for the row to be a candidate; in `prefer` it only ranks candidates. `class` sits beside `require` and `prefer`: the requirement class, which defaults to the role's workload class. Agent-selection spells the two blocks `requires` and `prefers`, the hard reasoning term `"reasoning": "required"` and the context term `context_window_min`; this specification amends agent-selection §3 to the spelling above. The old need term `capability` becomes `capabilities`, so it no longer collides with a role's archetype `capability` (§4.3). Roadmap milestone M4 then reads its role needs from `Playbook.json` as written.
 
@@ -1042,6 +1074,8 @@ In `require` a term must hold for the row to be a candidate; in `prefer` it only
 3. **Unknown.** A requirement is unmet and `on_unmet` applies, with a refusal that names what to measure; a preference scores nothing.
 
 `pp` and `ttft` depend on the length of the prompt, so both are measured at one reference prompt size, which PC1 fixes (§17.3).
+
+**Recall facts** *(proposed, 2026-09-29)*. `recall` has only two of the three levels. It is measured, from the calibrations and seeded reviews of this role on this machine and account (§6.16), or it is unknown; no registry declares it. A requirement on an unknown recall is unmet, and `on_unmet` applies with a refusal that names the calibration to run; a preference scores nothing.
 
 **Independence**. `not_same_publisher_as: <role>` is evaluated against the provenance of the run that produced the evidence under review — the run of that role that recorded the outcome or the Change Request revision the reviewer reads — never against a binding. On a shared board that run may come from another teammate's machine, bindings may be candidate lists, and without an operator file there is no binding at all. Run manifests record the runtime and the model (LP D11), and the registry maps the model to its publisher. Work produced by a person satisfies the requirement; work whose producing run has no recorded provenance does not, and `on_unmet` applies. In a composition the value may be a qualified role name.
 
@@ -1432,6 +1466,13 @@ H4 (keep the effort floor), H6 (the demos and the PC rows) and H8 (one owner per
     - how a wave's failure policy is declared beyond "do not grow".
 24. **The publishing module** (§6.15). Its scope, its first platforms, and who owns rights and licence checks.
 25. **Typed findings and helper answers** (§6.16): their schema, delivered with the provider modules in PC1.
+26. **Mutation evidence and reviewer calibration** (§6.16). Open:
+    - how the changed ranges reach the mutation commands, and the fields of their result;
+    - who may mark an equivalent mutant, and whether the mark needs a second reviewer;
+    - how many plants a recall needs before it counts, and whether it is kept per class or overall;
+    - how a seeded review maps its findings back to the lines of the real revision;
+    - the defect classes dev-cycle ships, and whether they are drawn from the project's escaped defects;
+    - whether recall facts are shared between teammates' machines or stay with the machine that measured them.
 
 **What this means for PC1.** PC1 can start: everything it implements is decided or has a stated default. Item 13 is decided, so the classification of §2.4 is capability coverage. PC1 ships the trust component as a guardrail stub; the mechanisms of [`trust.md`](https://github.com/relux-works/curator-trust/blob/main/spec/trust.md) arrive in PC3. The gates on later work are these:
 
@@ -1820,3 +1861,14 @@ Proposed on 2026-09-29 after testing the model against published AI video pipeli
 | `publish` risk, absolute-time triggers, external data with freshness, metrics as signed events, intake from events, per-platform versions; platform work in a publishing module | §6.15 |
 | Typed findings, the unverified list, seams, write scopes, `vision`, `video-input` and `audio-input` needs | §6.16 |
 | Open items 21–25 | §17.3 |
+
+## 34. Change log: v4.7 → v4.8
+
+Proposed on 2026-09-29 from the operators' call of 2026-09-28. Mutation testing is already part of how task-board's reviewers work, and seeding known errors into synthetic input was used to validate a tool. Both carry over to any process with a review:
+
+| Change | Where |
+| --- | --- |
+| Mutation evidence in a check set: `mutation` with `scope` and `min_killed`; survivors as typed findings; equivalent mutants marked in a verdict; reviewers' targeted mutants as evidence | §6.16, §6.12 |
+| Reviewer calibration: a seeder plants sealed defects by class in a copy of a candidate; calibration runs in dreams; optional seeded reviews with the `review.recall` guard; an advisory estimate of the defects that remain | §6.16, §6.13 |
+| The need term `recall`, measured or unknown, never declared | §9 |
+| Open item 26 | §17.3 |
