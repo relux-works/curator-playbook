@@ -1,0 +1,1726 @@
+{
+  "$schema": "../../schema/playbook-v1.schema.json",
+  "schema_version": 1,
+  "name": "music-video",
+  "description": "An AI-produced lyric music video, modelled on a public production record (a five-minute video made in about nineteen hours by one human director and an agent production team). The director owns taste: the concept, the casting pick, the song take, the storyboard and the cut. Agents do research, lyrics, the storyboard, prompts and motion design; tools own every step that runs an external generator or a machine check (images, song, audio analysis, video clips, lip-sync measurement, plate preparation, render checks, the master render). Competing drafts are judged by blind helpers and merged; generation spends money only under a spending approval that the director may delegate within a ceiling; lip-sync drift is measured and covered by continuation clips; every loop is a template parameter. Discoveries made during production are recorded as decisions that later briefs read.",
+  "params": {
+    "take_limit": {
+      "type": "limit",
+      "default": 5,
+      "description": "How many times the director may reject every song take before the song escalates."
+    },
+    "casting_rounds": {
+      "type": "limit",
+      "default": 3,
+      "description": "Casting batches before the lead escalates to the director."
+    },
+    "critic_rounds": {
+      "type": "limit",
+      "default": 2,
+      "description": "Critic passes on the merged lyric sheet."
+    },
+    "board_fix_limit": {
+      "type": "limit",
+      "default": 3,
+      "description": "Merges the storyboard constraint check may send back."
+    },
+    "plate_rework_limit": {
+      "type": "limit",
+      "default": 3,
+      "description": "Prompt reworks of one plate: identity drift, a distorted face, a wrong framing."
+    },
+    "clip_retry_limit": {
+      "type": "limit",
+      "default": 2,
+      "description": "Provider failures of one clip before it escalates."
+    },
+    "cover_limit": {
+      "type": "limit",
+      "default": 4,
+      "description": "Continuation clips that may cover a drifting clip before the lip-sync fallback model repairs it."
+    },
+    "chapter_rework_limit": {
+      "type": "limit",
+      "default": 2,
+      "description": "Art-director review rounds of one chapter of motion design."
+    },
+    "revision_limit": {
+      "type": "limit",
+      "default": "none",
+      "description": "Director review rounds of the cut. Unbounded by default: every round needs the director's own verdict."
+    }
+  },
+  "root": "orchestrator",
+  "roles": {
+    "orchestrator": {
+      "skill": "mv-orchestrator",
+      "capability": "orchestrator",
+      "description": "The production lead: plans, writes prompts and briefs, records decisions, assembles the edit."
+    },
+    "director": {
+      "kind": "human",
+      "who": "directors",
+      "capability": "approver",
+      "description": "Owns taste: concept, casting, song take, storyboard, cut."
+    },
+    "researcher": {
+      "skill": "mv-researcher",
+      "capability": "producer"
+    },
+    "verifier": {
+      "skill": "mv-fact-checker",
+      "capability": "reviewer",
+      "description": "Adversarial fact-checker: tries to refute every candidate reference before it may enter a lyric.",
+      "needs": {
+        "prefer": {
+          "not_same_publisher_as": "researcher"
+        }
+      }
+    },
+    "research-editor": {
+      "skill": "mv-research-editor",
+      "capability": "producer"
+    },
+    "lyricist": {
+      "skill": "mv-lyricist",
+      "capability": "producer"
+    },
+    "judge": {
+      "skill": "mv-judge",
+      "capability": "reviewer",
+      "description": "Scores competing drafts through one lens; answers blind."
+    },
+    "head-writer": {
+      "skill": "mv-head-writer",
+      "capability": "producer"
+    },
+    "critic": {
+      "skill": "mv-critic",
+      "capability": "reviewer"
+    },
+    "storyboard-director": {
+      "skill": "mv-storyboard-director",
+      "capability": "producer"
+    },
+    "head-director": {
+      "skill": "mv-head-director",
+      "capability": "producer"
+    },
+    "art-director": {
+      "skill": "mv-art-director",
+      "capability": "reviewer",
+      "description": "Looks at real images and rendered frames: identity, framing, taste, density.",
+      "needs": {
+        "require": {
+          "capabilities": [
+            "vision"
+          ]
+        }
+      }
+    },
+    "animator": {
+      "skill": "mv-animator",
+      "capability": "producer",
+      "description": "Writes one chapter of motion design and kinetic type, and checks its own contact sheets.",
+      "needs": {
+        "require": {
+          "capabilities": [
+            "vision"
+          ],
+          "reasoning": true
+        }
+      }
+    },
+    "librarian": {
+      "skill": "mv-librarian",
+      "capability": "producer",
+      "description": "Turns what the production learned into reusable guides, assets and proposed playbook changes."
+    },
+    "art-department": {
+      "kind": "tool",
+      "tool": "mj.generate",
+      "capability": "x-generator"
+    },
+    "song-generator": {
+      "kind": "tool",
+      "tool": "song.generate",
+      "capability": "x-generator"
+    },
+    "audio-lab": {
+      "kind": "tool",
+      "tool": "audio.analyze",
+      "capability": "checker"
+    },
+    "board-checker": {
+      "kind": "tool",
+      "tool": "board.check",
+      "capability": "checker"
+    },
+    "plate-lab": {
+      "kind": "tool",
+      "tool": "plate.prep",
+      "capability": "x-generator"
+    },
+    "clip-generator": {
+      "kind": "tool",
+      "tool": "clip.generate",
+      "capability": "x-generator"
+    },
+    "sync-checker": {
+      "kind": "tool",
+      "tool": "sync.check",
+      "capability": "checker"
+    },
+    "lipsync-repair": {
+      "kind": "tool",
+      "tool": "lipsync.repair",
+      "capability": "x-generator"
+    },
+    "render-checker": {
+      "kind": "tool",
+      "tool": "render.check",
+      "capability": "checker"
+    },
+    "renderer": {
+      "kind": "tool",
+      "tool": "render.master",
+      "capability": "x-generator"
+    }
+  },
+  "tools": {
+    "mj.generate": {
+      "skill": "mv-image-gen",
+      "command": "mv-mj-generate",
+      "timeout": "PT20M",
+      "description": "Runs one batch of image prompts in the director's own image-generator account (a personal style profile) and returns the grids. The provider drives the director's signed-in browser; a captcha or a lost sign-in fails the invocation with that reason."
+    },
+    "song.generate": {
+      "skill": "mv-song-gen",
+      "command": "mv-song-generate",
+      "timeout": "PT15M",
+      "description": "Generates song takes from the style, exclusions and lyric fields."
+    },
+    "audio.analyze": {
+      "skill": "mv-audio-lab",
+      "command": "mv-audio-analyze",
+      "timeout": "PT45M",
+      "description": "On the GPU box: stems, the beat map (tempo may drift), and word-level forced alignment. Everything after it is placed on this grid."
+    },
+    "board.check": {
+      "skill": "mv-board-check",
+      "command": "mv-board-check",
+      "timeout": "PT5M",
+      "description": "Constraint audit of shots.json: shots tile the whole song without gaps, cuts sit on beats, every lyric line is covered, the lead is on screen for the agreed share, planned generated seconds stay within capacity, no two clips start from the same frame."
+    },
+    "plate.prep": {
+      "skill": "mv-plate-lab",
+      "command": "mv-plate-prep",
+      "timeout": "PT30M",
+      "description": "Depth map and object and face tracking for one approved plate, for 2.5D parallax and tracked annotations."
+    },
+    "clip.generate": {
+      "skill": "mv-clip-gen",
+      "command": "mv-clip-generate",
+      "timeout": "PT30M",
+      "description": "Image-to-video from the plate plus the exact window of the vocal as an audio reference; the prompt quotes the words sung in the window. Metered: it spends money."
+    },
+    "sync.check": {
+      "skill": "mv-sync-check",
+      "command": "mv-sync-check",
+      "timeout": "PT10M",
+      "description": "Compares the clip's own soundtrack with the real vocal and reports where they diverge; passes when the clip stays in sync to its end."
+    },
+    "lipsync.repair": {
+      "skill": "mv-lipsync",
+      "command": "mv-lipsync-repair",
+      "timeout": "PT45M",
+      "description": "Fallback lip-sync model on the GPU box, used when continuation clips keep drifting."
+    },
+    "render.check": {
+      "skill": "mv-render",
+      "command": "mv-render-check",
+      "timeout": "PT30M",
+      "description": "Renders one chapter headless: every lyric token on screen on its word time, and the frame time within budget."
+    },
+    "render.master": {
+      "skill": "mv-render",
+      "command": "mv-render-master",
+      "timeout": "PT3H",
+      "description": "Renders every frame and encodes the master."
+    }
+  },
+  "entities": {
+    "video": {
+      "root": true,
+      "contains": [
+        "research",
+        "lyrics",
+        "song",
+        "lead",
+        "storyboard",
+        "cut",
+        "decision"
+      ],
+      "workflow": "video",
+      "fields": {
+        "concept": {
+          "type": "text",
+          "required": true,
+          "description": "The idea, the references, the audience and the director's taste in the director's words."
+        },
+        "audience": {
+          "type": "string"
+        },
+        "target_duration": {
+          "type": "duration"
+        },
+        "master": {
+          "type": "string",
+          "description": "Reference to the delivered master file."
+        }
+      }
+    },
+    "research": {
+      "parents": [
+        "video"
+      ],
+      "contains": [
+        "sweep"
+      ],
+      "workflow": "research",
+      "fields": {
+        "angles": {
+          "type": "list",
+          "of": "string",
+          "required": true,
+          "description": "One research sweep per angle: recent events, local memes, quotable lines, a fact-check of earlier claims."
+        },
+        "bank": {
+          "type": "string",
+          "description": "Reference to the ranked bank of verified references."
+        }
+      }
+    },
+    "sweep": {
+      "parents": [
+        "research"
+      ],
+      "workflow": "sweep",
+      "fields": {
+        "angle": {
+          "type": "string",
+          "required": true
+        }
+      }
+    },
+    "lyrics": {
+      "parents": [
+        "video"
+      ],
+      "contains": [
+        "draft"
+      ],
+      "workflow": "lyrics",
+      "fields": {
+        "angles": {
+          "type": "list",
+          "of": "string",
+          "required": true,
+          "description": "One lyricist per angle, for example density, tension, hook, format."
+        },
+        "sheet": {
+          "type": "string",
+          "description": "Reference to the merged lyric sheet, with a source for every line."
+        }
+      }
+    },
+    "draft": {
+      "parents": [
+        "lyrics",
+        "storyboard"
+      ],
+      "workflow": "draft",
+      "fields": {
+        "angle": {
+          "type": "string",
+          "required": true
+        }
+      }
+    },
+    "song": {
+      "parents": [
+        "video"
+      ],
+      "workflow": "song",
+      "fields": {
+        "take": {
+          "type": "string",
+          "description": "The take the director picked."
+        },
+        "timeline": {
+          "type": "string",
+          "description": "Reference to the beat map and the word timings."
+        }
+      }
+    },
+    "lead": {
+      "parents": [
+        "video"
+      ],
+      "workflow": "lead",
+      "fields": {
+        "canon": {
+          "type": "text",
+          "description": "The lead's written canon, repeated in every prompt she appears in."
+        }
+      }
+    },
+    "storyboard": {
+      "parents": [
+        "video"
+      ],
+      "contains": [
+        "draft",
+        "plate",
+        "chapter"
+      ],
+      "workflow": "storyboard",
+      "fields": {
+        "angles": {
+          "type": "list",
+          "of": "string",
+          "required": true,
+          "description": "One storyboard director per angle, for example fashion film, meme density, narrative."
+        },
+        "shots": {
+          "type": "string",
+          "description": "Reference to shots.json: every shot with its lyric, type mode, plate prompt, camera and clip."
+        },
+        "plates": {
+          "type": "list",
+          "of": "string",
+          "description": "Plate ids the merged board needs."
+        },
+        "chapters": {
+          "type": "list",
+          "of": "string",
+          "description": "Chapter ids, one animator each."
+        }
+      }
+    },
+    "plate": {
+      "parents": [
+        "storyboard"
+      ],
+      "contains": [
+        "clip"
+      ],
+      "workflow": "plate",
+      "fields": {
+        "plate_id": {
+          "type": "string",
+          "required": true
+        },
+        "prompt": {
+          "type": "text"
+        },
+        "pick": {
+          "type": "string",
+          "description": "The chosen image of the grid."
+        },
+        "clip_ids": {
+          "type": "list",
+          "of": "string",
+          "description": "Clips that start from this plate."
+        }
+      }
+    },
+    "clip": {
+      "parents": [
+        "plate"
+      ],
+      "workflow": "clip",
+      "estimates": [
+        {
+          "name": "generated-seconds",
+          "scale": "points",
+          "description": "One point is one second of generated video."
+        }
+      ],
+      "fields": {
+        "clip_id": {
+          "type": "string",
+          "required": true
+        },
+        "song_t0": {
+          "type": "number",
+          "description": "Window start in song seconds, inside a gap between words. A continuation take moves it to the cut."
+        },
+        "sung": {
+          "type": "boolean",
+          "default": false
+        },
+        "words": {
+          "type": "text",
+          "description": "The exact words sung in the window, quoted in the prompt."
+        },
+        "cost": {
+          "type": "money",
+          "currency": "USD",
+          "description": "Estimated cost of the generation; the spending ceiling reads it."
+        },
+        "diverged_at": {
+          "type": "number",
+          "description": "Where the last take's soundtrack left the vocal, in song seconds; the edit cuts on the last eighth note before it."
+        }
+      }
+    },
+    "chapter": {
+      "parents": [
+        "storyboard"
+      ],
+      "workflow": "chapter",
+      "fields": {
+        "chapter_id": {
+          "type": "string",
+          "required": true
+        },
+        "t0": {
+          "type": "number"
+        },
+        "t1": {
+          "type": "number"
+        }
+      }
+    },
+    "cut": {
+      "parents": [
+        "video"
+      ],
+      "workflow": "cut",
+      "fields": {
+        "version": {
+          "type": "integer",
+          "default": 1
+        }
+      }
+    },
+    "decision": {
+      "parents": [
+        "video"
+      ],
+      "workflow": "decision",
+      "fields": {
+        "statement": {
+          "type": "text",
+          "required": true,
+          "description": "What was learned and what it changes, for example: identity lives in the prompt text, not in reference images."
+        },
+        "supersedes": {
+          "type": "text"
+        }
+      }
+    }
+  },
+  "workflows": {
+    "video": {
+      "initial": "brief",
+      "states": {
+        "brief": {
+          "owner": "director"
+        },
+        "researching": {
+          "owner": "orchestrator"
+        },
+        "writing": {
+          "owner": "orchestrator"
+        },
+        "pre-production": {
+          "owner": "orchestrator",
+          "description": "The song and the lead run in parallel."
+        },
+        "boarding": {
+          "owner": "orchestrator"
+        },
+        "finishing": {
+          "owner": "orchestrator"
+        },
+        "retrospective": {
+          "owner": "librarian",
+          "description": "Learnings into the taste guides and the asset library; proposed changes to this playbook wait for the director's confirmation like any process change."
+        },
+        "delivered": {
+          "terminal": true
+        },
+        "cancelled": {
+          "terminal": true,
+          "resolution": true
+        }
+      },
+      "transitions": [
+        {
+          "from": "brief",
+          "to": "researching",
+          "guards": [
+            {
+              "guard": "fields.present",
+              "fields": [
+                "concept"
+              ]
+            }
+          ],
+          "actions": [
+            {
+              "action": "create",
+              "type": "research"
+            }
+          ]
+        },
+        {
+          "from": "researching",
+          "to": "writing",
+          "guards": [
+            "children.terminal"
+          ],
+          "actions": [
+            {
+              "action": "create",
+              "type": "lyrics"
+            }
+          ]
+        },
+        {
+          "from": "writing",
+          "to": "pre-production",
+          "guards": [
+            "children.terminal"
+          ],
+          "actions": [
+            {
+              "action": "create",
+              "type": "song"
+            },
+            {
+              "action": "create",
+              "type": "lead"
+            }
+          ]
+        },
+        {
+          "from": "pre-production",
+          "to": "boarding",
+          "guards": [
+            "children.terminal"
+          ],
+          "actions": [
+            {
+              "action": "create",
+              "type": "storyboard"
+            }
+          ]
+        },
+        {
+          "from": "boarding",
+          "to": "finishing",
+          "guards": [
+            "children.terminal"
+          ],
+          "actions": [
+            {
+              "action": "create",
+              "type": "cut"
+            }
+          ]
+        },
+        {
+          "from": "finishing",
+          "to": "retrospective",
+          "guards": [
+            "children.terminal",
+            {
+              "guard": "fields.present",
+              "fields": [
+                "master"
+              ]
+            }
+          ],
+          "actions": [
+            "spawn.owner"
+          ]
+        },
+        {
+          "from": "retrospective",
+          "to": "delivered",
+          "guards": [
+            "outcome.present"
+          ]
+        },
+        {
+          "from": "*",
+          "to": "cancelled"
+        }
+      ]
+    },
+    "research": {
+      "initial": "planning",
+      "states": {
+        "planning": {
+          "owner": "orchestrator"
+        },
+        "sweeping": {
+          "owner": "orchestrator"
+        },
+        "synthesizing": {
+          "owner": "research-editor",
+          "description": "Merges the verified items into one ranked bank; refuted items are dropped and unverifiable ones kept out of the lyric candidates."
+        },
+        "banked": {
+          "terminal": true
+        }
+      },
+      "transitions": [
+        {
+          "from": "planning",
+          "to": "sweeping",
+          "guards": [
+            {
+              "guard": "fields.present",
+              "fields": [
+                "angles"
+              ]
+            }
+          ],
+          "actions": [
+            {
+              "action": "create",
+              "type": "sweep",
+              "per": "angles",
+              "fields": {
+                "angle": "$item"
+              }
+            }
+          ]
+        },
+        {
+          "from": "sweeping",
+          "to": "synthesizing",
+          "guards": [
+            "children.terminal"
+          ],
+          "actions": [
+            "spawn.owner"
+          ]
+        },
+        {
+          "from": "synthesizing",
+          "to": "banked",
+          "guards": [
+            {
+              "guard": "fields.present",
+              "fields": [
+                "bank"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "sweep": {
+      "initial": "researching",
+      "states": {
+        "researching": {
+          "owner": "researcher"
+        },
+        "verifying": {
+          "owner": "verifier"
+        },
+        "verified": {
+          "terminal": true
+        },
+        "refuted": {
+          "terminal": true,
+          "resolution": [
+            "refuted",
+            "unverifiable"
+          ]
+        }
+      },
+      "transitions": [
+        {
+          "from": "researching",
+          "to": "verifying",
+          "guards": [
+            "outcome.present"
+          ],
+          "actions": [
+            "spawn.owner"
+          ]
+        },
+        {
+          "from": "verifying",
+          "to": "verified",
+          "guards": [
+            {
+              "guard": "verdict",
+              "is": "accepted"
+            }
+          ]
+        },
+        {
+          "from": "verifying",
+          "to": "refuted",
+          "guards": [
+            {
+              "guard": "verdict",
+              "is": "changes_requested"
+            }
+          ]
+        }
+      ]
+    },
+    "lyrics": {
+      "initial": "drafting",
+      "states": {
+        "drafting": {
+          "owner": "orchestrator"
+        },
+        "judging": {
+          "owner": "head-writer",
+          "helpers": [
+            {
+              "role": "judge",
+              "min": 3,
+              "blind": true
+            }
+          ],
+          "description": "Judges score every draft through their own lens without seeing each other's scores; the head writer starts from the best draft, grafts the best lines of the others and cuts the worst."
+        },
+        "critique": {
+          "owner": "critic",
+          "description": "Every fact used is verified, every line fits its bars, the chorus is singable, the director's stated likes are kept."
+        },
+        "escalated": {
+          "owner": "director"
+        },
+        "written": {
+          "terminal": true
+        }
+      },
+      "transitions": [
+        {
+          "from": "drafting",
+          "to": "judging",
+          "guards": [
+            {
+              "guard": "fields.present",
+              "fields": [
+                "angles"
+              ]
+            }
+          ],
+          "actions": [
+            {
+              "action": "create",
+              "type": "draft",
+              "per": "angles",
+              "fields": {
+                "angle": "$item"
+              }
+            }
+          ]
+        },
+        {
+          "from": "judging",
+          "to": "critique",
+          "guards": [
+            "children.terminal",
+            {
+              "guard": "fields.present",
+              "fields": [
+                "sheet"
+              ]
+            }
+          ],
+          "actions": [
+            "spawn.owner"
+          ]
+        },
+        {
+          "from": "critique",
+          "to": "written",
+          "guards": [
+            {
+              "guard": "verdict",
+              "is": "accepted"
+            }
+          ]
+        },
+        {
+          "from": "critique",
+          "to": "judging",
+          "guards": [
+            {
+              "guard": "verdict",
+              "is": "changes_requested"
+            }
+          ],
+          "limit": {
+            "max": "$critic_rounds",
+            "then": "escalated"
+          }
+        },
+        {
+          "from": "escalated",
+          "to": "written"
+        },
+        {
+          "from": "escalated",
+          "to": "judging"
+        }
+      ]
+    },
+    "draft": {
+      "initial": "writing",
+      "states": {
+        "writing": {
+          "owner": {
+            "one_of": [
+              "lyricist",
+              "storyboard-director"
+            ],
+            "by": "assignment.role"
+          }
+        },
+        "submitted": {
+          "terminal": true
+        }
+      },
+      "transitions": [
+        {
+          "from": "writing",
+          "to": "submitted",
+          "guards": [
+            "outcome.present"
+          ]
+        }
+      ]
+    },
+    "song": {
+      "initial": "generating",
+      "states": {
+        "generating": {
+          "owner": "song-generator"
+        },
+        "picking": {
+          "owner": "director",
+          "description": "The director listens and picks a take, or asks for more."
+        },
+        "analyzing": {
+          "owner": "audio-lab"
+        },
+        "assist": {
+          "owner": "director",
+          "description": "A generator needs the director: a captcha, a lost sign-in, a spent quota."
+        },
+        "escalated": {
+          "owner": "director"
+        },
+        "locked": {
+          "terminal": true
+        }
+      },
+      "transitions": [
+        {
+          "from": "generating",
+          "to": "picking",
+          "on": {
+            "event": "tool.passed"
+          }
+        },
+        {
+          "from": "generating",
+          "to": "assist",
+          "on": {
+            "event": "tool.failed"
+          }
+        },
+        {
+          "from": "assist",
+          "to": "generating"
+        },
+        {
+          "from": "picking",
+          "to": "analyzing",
+          "guards": [
+            {
+              "guard": "approvals",
+              "role": "director",
+              "min": 1
+            },
+            {
+              "guard": "fields.present",
+              "fields": [
+                "take"
+              ]
+            }
+          ]
+        },
+        {
+          "from": "picking",
+          "to": "generating",
+          "limit": {
+            "max": "$take_limit",
+            "then": "escalated"
+          }
+        },
+        {
+          "from": "analyzing",
+          "to": "locked",
+          "on": {
+            "event": "tool.passed"
+          }
+        },
+        {
+          "from": "analyzing",
+          "to": "escalated",
+          "on": {
+            "event": "tool.failed"
+          }
+        },
+        {
+          "from": "escalated",
+          "to": "generating"
+        }
+      ]
+    },
+    "lead": {
+      "initial": "canon",
+      "states": {
+        "canon": {
+          "owner": "art-director",
+          "description": "Writes the lead's canon: hair, one accent, props, garments, and an explicit appearance descriptor, so that the image model does not drift her from shot to shot."
+        },
+        "casting": {
+          "owner": "art-department",
+          "description": "One batch: turnarounds, a set shot and a face sheet per candidate direction."
+        },
+        "picking": {
+          "owner": "director"
+        },
+        "assist": {
+          "owner": "director"
+        },
+        "escalated": {
+          "owner": "director"
+        },
+        "cast": {
+          "terminal": true
+        }
+      },
+      "transitions": [
+        {
+          "from": "canon",
+          "to": "casting",
+          "guards": [
+            {
+              "guard": "fields.present",
+              "fields": [
+                "canon"
+              ]
+            }
+          ]
+        },
+        {
+          "from": "casting",
+          "to": "picking",
+          "on": {
+            "event": "tool.passed"
+          }
+        },
+        {
+          "from": "casting",
+          "to": "assist",
+          "on": {
+            "event": "tool.failed"
+          }
+        },
+        {
+          "from": "assist",
+          "to": "casting"
+        },
+        {
+          "from": "picking",
+          "to": "cast",
+          "guards": [
+            {
+              "guard": "approvals",
+              "role": "director",
+              "min": 1
+            }
+          ]
+        },
+        {
+          "from": "picking",
+          "to": "canon",
+          "limit": {
+            "max": "$casting_rounds",
+            "then": "escalated"
+          }
+        },
+        {
+          "from": "escalated",
+          "to": "canon"
+        }
+      ]
+    },
+    "storyboard": {
+      "initial": "directing",
+      "states": {
+        "directing": {
+          "owner": "orchestrator"
+        },
+        "merging": {
+          "owner": "head-director",
+          "helpers": [
+            {
+              "role": "judge",
+              "min": 3,
+              "blind": true
+            }
+          ],
+          "description": "Judges score the boards on hook, lead coverage, lyric video, jokes, taste and feasibility; the head director merges the best into one board and writes shots.json."
+        },
+        "checking": {
+          "owner": "board-checker"
+        },
+        "approval": {
+          "owner": "director",
+          "description": "The director reviews the board as a document and may add notes; each note becomes a decision the merge applies."
+        },
+        "producing": {
+          "owner": "orchestrator",
+          "description": "Plates and chapters run in parallel; chapters start on plates while clips are still arriving."
+        },
+        "escalated": {
+          "owner": "director"
+        },
+        "boarded": {
+          "terminal": true
+        }
+      },
+      "transitions": [
+        {
+          "from": "directing",
+          "to": "merging",
+          "guards": [
+            {
+              "guard": "fields.present",
+              "fields": [
+                "angles"
+              ]
+            }
+          ],
+          "actions": [
+            {
+              "action": "create",
+              "type": "draft",
+              "per": "angles",
+              "fields": {
+                "angle": "$item"
+              }
+            }
+          ]
+        },
+        {
+          "from": "merging",
+          "to": "checking",
+          "guards": [
+            "children.terminal",
+            {
+              "guard": "fields.present",
+              "fields": [
+                "shots",
+                "plates",
+                "chapters"
+              ]
+            }
+          ]
+        },
+        {
+          "from": "checking",
+          "to": "approval",
+          "on": {
+            "event": "tool.passed"
+          }
+        },
+        {
+          "from": "checking",
+          "to": "merging",
+          "on": {
+            "event": "tool.failed"
+          },
+          "limit": {
+            "max": "$board_fix_limit",
+            "then": "escalated"
+          }
+        },
+        {
+          "from": "approval",
+          "to": "merging",
+          "guards": [
+            {
+              "guard": "verdict",
+              "is": "changes_requested"
+            }
+          ]
+        },
+        {
+          "from": "approval",
+          "to": "producing",
+          "guards": [
+            {
+              "guard": "approvals",
+              "role": "director",
+              "min": 1
+            }
+          ],
+          "actions": [
+            {
+              "action": "create",
+              "type": "plate",
+              "per": "plates",
+              "fields": {
+                "plate_id": "$item"
+              }
+            },
+            {
+              "action": "create",
+              "type": "chapter",
+              "per": "chapters",
+              "fields": {
+                "chapter_id": "$item"
+              }
+            }
+          ]
+        },
+        {
+          "from": "producing",
+          "to": "boarded",
+          "guards": [
+            "children.terminal"
+          ]
+        },
+        {
+          "from": "escalated",
+          "to": "merging"
+        }
+      ]
+    },
+    "plate": {
+      "initial": "prompting",
+      "states": {
+        "prompting": {
+          "owner": "orchestrator",
+          "description": "One concrete scene with a declared empty area for type, the lead's canon when she is in it, and the video's family of style words."
+        },
+        "generating": {
+          "owner": "art-department"
+        },
+        "picking": {
+          "owner": "art-director",
+          "description": "Chooses one image of the grid: on-model, no distorted face or backwards head, framing as boarded, room for type."
+        },
+        "preparing": {
+          "owner": "plate-lab"
+        },
+        "clips": {
+          "owner": "orchestrator",
+          "description": "Clips that start from this plate run as children."
+        },
+        "assist": {
+          "owner": "director"
+        },
+        "escalated": {
+          "owner": "director"
+        },
+        "done": {
+          "terminal": true
+        }
+      },
+      "transitions": [
+        {
+          "from": "prompting",
+          "to": "generating",
+          "guards": [
+            {
+              "guard": "fields.present",
+              "fields": [
+                "prompt"
+              ]
+            }
+          ]
+        },
+        {
+          "from": "generating",
+          "to": "picking",
+          "on": {
+            "event": "tool.passed"
+          },
+          "actions": [
+            "spawn.owner"
+          ]
+        },
+        {
+          "from": "generating",
+          "to": "assist",
+          "on": {
+            "event": "tool.failed"
+          }
+        },
+        {
+          "from": "assist",
+          "to": "generating"
+        },
+        {
+          "from": "picking",
+          "to": "preparing",
+          "guards": [
+            {
+              "guard": "verdict",
+              "is": "accepted"
+            },
+            {
+              "guard": "fields.present",
+              "fields": [
+                "pick"
+              ]
+            }
+          ]
+        },
+        {
+          "from": "picking",
+          "to": "prompting",
+          "guards": [
+            {
+              "guard": "verdict",
+              "is": "changes_requested"
+            }
+          ],
+          "limit": {
+            "max": "$plate_rework_limit",
+            "then": "escalated"
+          }
+        },
+        {
+          "from": "preparing",
+          "to": "clips",
+          "on": {
+            "event": "tool.passed"
+          },
+          "actions": [
+            {
+              "action": "create",
+              "type": "clip",
+              "per": "clip_ids",
+              "fields": {
+                "clip_id": "$item"
+              }
+            }
+          ]
+        },
+        {
+          "from": "preparing",
+          "to": "escalated",
+          "on": {
+            "event": "tool.failed"
+          }
+        },
+        {
+          "from": "clips",
+          "to": "done",
+          "guards": [
+            "children.terminal"
+          ]
+        },
+        {
+          "from": "clips",
+          "to": "prompting",
+          "guards": [
+            {
+              "guard": "approvals",
+              "role": "director",
+              "min": 1
+            }
+          ],
+          "description": "The director sends a plate back after seeing it in context, for example a wrong face in a list of shots."
+        },
+        {
+          "from": "escalated",
+          "to": "prompting"
+        }
+      ]
+    },
+    "clip": {
+      "initial": "queued",
+      "states": {
+        "queued": {
+          "owner": "orchestrator",
+          "description": "Writes the prompt: the plate as the first image, the exact vocal window as the audio reference, the sung words quoted; records the estimated cost and seconds."
+        },
+        "generating": {
+          "owner": "clip-generator"
+        },
+        "syncing": {
+          "owner": "sync-checker"
+        },
+        "diverged": {
+          "owner": "orchestrator",
+          "description": "Records the cut before the divergence and sets the next take to start from that frame and that point of the song. The takes are resources of this clip; the edit uses each one up to its cut."
+        },
+        "repairing": {
+          "owner": "lipsync-repair"
+        },
+        "escalated": {
+          "owner": "director"
+        },
+        "accepted": {
+          "terminal": true
+        },
+        "dropped": {
+          "terminal": true,
+          "resolution": [
+            "replaced-by-motion-design",
+            "over-budget"
+          ]
+        }
+      },
+      "transitions": [
+        {
+          "from": "queued",
+          "to": "generating",
+          "risk": "spending",
+          "guards": [
+            {
+              "guard": "approvals",
+              "role": "director",
+              "min": 1
+            },
+            {
+              "guard": "fields.present",
+              "fields": [
+                "cost"
+              ]
+            }
+          ],
+          "description": "Generation spends money, so it needs a spending approval; the director may delegate it to the orchestrator within a ceiling per clip and a budget per period (project file)."
+        },
+        {
+          "from": "generating",
+          "to": "syncing",
+          "on": {
+            "event": "tool.passed"
+          },
+          "guards": [
+            {
+              "guard": "field",
+              "name": "sung",
+              "is": true
+            }
+          ]
+        },
+        {
+          "from": "generating",
+          "to": "accepted",
+          "on": {
+            "event": "tool.passed"
+          },
+          "guards": [
+            {
+              "guard": "field",
+              "name": "sung",
+              "is": false
+            }
+          ]
+        },
+        {
+          "from": "generating",
+          "to": "queued",
+          "on": {
+            "event": "tool.failed"
+          },
+          "limit": {
+            "max": "$clip_retry_limit",
+            "then": "escalated"
+          }
+        },
+        {
+          "from": "syncing",
+          "to": "accepted",
+          "on": {
+            "event": "tool.passed"
+          }
+        },
+        {
+          "from": "syncing",
+          "to": "diverged",
+          "on": {
+            "event": "tool.failed"
+          },
+          "limit": {
+            "max": "$cover_limit",
+            "then": "repairing"
+          },
+          "description": "Each continuation take counts; after cover_limit takes of one clip the lip-sync fallback repairs it."
+        },
+        {
+          "from": "diverged",
+          "to": "queued",
+          "guards": [
+            {
+              "guard": "fields.present",
+              "fields": [
+                "diverged_at"
+              ]
+            }
+          ],
+          "description": "A continuation take is a new generation, so it needs a fresh spending approval."
+        },
+        {
+          "from": "repairing",
+          "to": "accepted",
+          "on": {
+            "event": "tool.passed"
+          }
+        },
+        {
+          "from": "repairing",
+          "to": "escalated",
+          "on": {
+            "event": "tool.failed"
+          }
+        },
+        {
+          "from": "escalated",
+          "to": "queued"
+        },
+        {
+          "from": [
+            "queued",
+            "escalated"
+          ],
+          "to": "dropped"
+        }
+      ]
+    },
+    "chapter": {
+      "initial": "animating",
+      "states": {
+        "animating": {
+          "owner": "animator",
+          "description": "Base footage, every lyric token on its word time, an explaining graphic per line, annotations tracked to the lead, the chapter look, motivated transitions. Frames are pure functions of time."
+        },
+        "review": {
+          "owner": "art-director",
+          "description": "Renders contact sheets and judges real frames; returns at most fourteen concrete fixes, most important first."
+        },
+        "fixing": {
+          "owner": "animator"
+        },
+        "checking": {
+          "owner": "render-checker"
+        },
+        "escalated": {
+          "owner": "director"
+        },
+        "done": {
+          "terminal": true
+        }
+      },
+      "transitions": [
+        {
+          "from": "animating",
+          "to": "review",
+          "guards": [
+            "outcome.present"
+          ],
+          "actions": [
+            "spawn.owner"
+          ]
+        },
+        {
+          "from": "review",
+          "to": "checking",
+          "guards": [
+            {
+              "guard": "verdict",
+              "is": "accepted"
+            }
+          ]
+        },
+        {
+          "from": "review",
+          "to": "fixing",
+          "guards": [
+            {
+              "guard": "verdict",
+              "is": "changes_requested"
+            }
+          ],
+          "limit": {
+            "max": "$chapter_rework_limit",
+            "then": "escalated"
+          },
+          "actions": [
+            "spawn.owner"
+          ]
+        },
+        {
+          "from": "fixing",
+          "to": "review",
+          "guards": [
+            "outcome.present"
+          ],
+          "actions": [
+            "spawn.owner"
+          ]
+        },
+        {
+          "from": "checking",
+          "to": "done",
+          "on": {
+            "event": "tool.passed"
+          }
+        },
+        {
+          "from": "checking",
+          "to": "fixing",
+          "on": {
+            "event": "tool.failed"
+          },
+          "actions": [
+            "spawn.owner"
+          ]
+        },
+        {
+          "from": "escalated",
+          "to": "fixing"
+        }
+      ]
+    },
+    "cut": {
+      "initial": "assembling",
+      "states": {
+        "assembling": {
+          "owner": "orchestrator",
+          "description": "The edit on the beat grid: covers where clips drifted, 2.5D and pure motion design where footage repeats, the print pass and the grade."
+        },
+        "rendering": {
+          "owner": "renderer"
+        },
+        "review": {
+          "owner": "director"
+        },
+        "escalated": {
+          "owner": "director"
+        },
+        "mastered": {
+          "terminal": true
+        }
+      },
+      "transitions": [
+        {
+          "from": "assembling",
+          "to": "rendering",
+          "guards": [
+            "outcome.present"
+          ]
+        },
+        {
+          "from": "rendering",
+          "to": "review",
+          "on": {
+            "event": "tool.passed"
+          }
+        },
+        {
+          "from": "rendering",
+          "to": "escalated",
+          "on": {
+            "event": "tool.failed"
+          }
+        },
+        {
+          "from": "review",
+          "to": "mastered",
+          "guards": [
+            {
+              "guard": "approvals",
+              "role": "director",
+              "min": 1
+            }
+          ]
+        },
+        {
+          "from": "review",
+          "to": "assembling",
+          "guards": [
+            {
+              "guard": "verdict",
+              "is": "changes_requested"
+            }
+          ],
+          "limit": {
+            "max": "$revision_limit",
+            "then": "escalated"
+          },
+          "description": "A director note such as 'way too grey' sends the cut back; the orchestrator records what it changes as a decision."
+        },
+        {
+          "from": "escalated",
+          "to": "assembling"
+        }
+      ]
+    },
+    "decision": {
+      "initial": "proposed",
+      "states": {
+        "proposed": {
+          "owner": "orchestrator"
+        },
+        "recorded": {
+          "terminal": true
+        },
+        "withdrawn": {
+          "terminal": true,
+          "resolution": true
+        }
+      },
+      "transitions": [
+        {
+          "from": "proposed",
+          "to": "recorded",
+          "guards": [
+            {
+              "guard": "fields.present",
+              "fields": [
+                "statement"
+              ]
+            }
+          ]
+        },
+        {
+          "from": "proposed",
+          "to": "withdrawn"
+        }
+      ]
+    }
+  },
+  "policy": {
+    "review": {
+      "default": "required"
+    },
+    "goals": {
+      "orchestrator_goal": "video"
+    }
+  }
+}

@@ -1,0 +1,37 @@
+{
+  "$schema": "../../schema/playbook-v1.schema.json",
+  "schema_version": 1,
+  "description": "A music-video project using the music-video playbook. It binds the director, enables the generator and checker tools, lets the director delegate clip spending to their own orchestrator sessions within a ceiling per clip (a granted delegation adds the budget, for example 150 USD for the project with 70 USD as the target), lets the director hand the storyboard go-ahead to the orchestrator for one element (their standing instruction 'if I stay silent for five minutes, go' becomes a grant with that wait and an expiry), and keeps the song pick, the casting pick and the final cut with the director. One GPU box and one render machine bound the states that use them.",
+  "uses": ["music-video"],
+  "root": "orchestrator",
+  "people": {
+    "directors": { "principals": ["op:director@studio"] }
+  },
+  "policy": {
+    "goals": { "orchestrator_goal": "video" },
+    "enable": {
+      "tools": ["mj.generate", "song.generate", "audio.analyze", "board.check", "plate.prep", "clip.generate", "sync.check", "lipsync.repair", "render.check", "render.master"],
+      "auto_spawn": true
+    },
+    "wip": {
+      "per_state": { "plate.preparing": 1, "clip.repairing": 1, "song.analyzing": 1, "chapter.checking": 2 },
+      "description": "The GPU box runs one analysis, plate preparation or lip-sync repair at a time; the render machine checks two chapters at a time."
+    },
+    "delegation": {
+      "allow": [
+        { "acts": ["approvals"], "role": "director", "states": ["clip.queued"], "to": ["orchestrator"],
+          "ceiling": [ { "guard": "field", "name": "cost", "lte": 5 } ],
+          "self_approval": true,
+          "description": "Clip generation up to 5 USD each may be approved by the director's own orchestrator sessions; the orchestrator writes the prompt and the cost estimate, so the rule allows self-approval. The director's grant adds the budget per period." },
+        { "acts": ["transitions"], "states": ["storyboard.approval"], "to": ["orchestrator"],
+          "description": "The director may grant, for one storyboard, the go-ahead after a stated silence; the grant records the wait and expires." }
+      ],
+      "never": [
+        { "acts": ["transitions"], "states": ["song.picking", "lead.picking", "cut.review"],
+          "description": "The song take, the lead and the final cut are taste calls that stay with the director." }
+      ]
+    },
+    "data": { "billing": ["subscription", "local"] },
+    "confirmers": "directors"
+  }
+}
