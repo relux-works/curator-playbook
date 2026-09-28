@@ -1,6 +1,6 @@
 # Process configuration: specification
 
-Status: **DRAFT v4.6**, 2026-09-28, the freeze candidate. Not normative until frozen. Roadmap: `wiki/roadmap/ecosystem-roadmap.md` (process-configuration line). Track: [`track.md`](track.md). Schema: [`../schema/playbook-v1.schema.json`](../schema/playbook-v1.schema.json). Examples: [`../examples/`](../examples/). Trust: [`trust.md`](https://github.com/relux-works/curator-trust/blob/main/spec/trust.md) in relux-works/curator-trust.
+Status: **DRAFT v4.7**, 2026-09-29, the freeze candidate. Not normative until frozen. Roadmap: `wiki/roadmap/ecosystem-roadmap.md` (process-configuration line). Track: [`track.md`](track.md). Schema: [`../schema/playbook-v1.schema.json`](../schema/playbook-v1.schema.json). Examples: [`../examples/`](../examples/). Trust: [`trust.md`](https://github.com/relux-works/curator-trust/blob/main/spec/trust.md) in relux-works/curator-trust.
 
 A team's process is code today. task-board's element types, statuses, gates and roles are compiled into its kernel, so a team that works differently — or a cafe ordering supplies, or a group formalizing a proof — cannot describe its process without changing the board. This specification answers one question: how does a project state who does what, which kinds of work exist and how each moves, in one file that every teammate can share and a validator can check before anything runs? It covers that file, its schema, extension and composition, distribution through Curator, model needs, and validation. The agent loop, an always-on scheduler and the goal ledger stay outside it (§1).
 
@@ -466,6 +466,25 @@ Scales: `fibonacci`, `points`, `tshirt`, `hours`, `days`. Capacity rules (§6.8)
 
 `privacy` on a type (`inherit`, `private`, `team`, `public`) and `policy.privacy` (`visibility`, `redact_fields`) express per-process privacy, one of the generality vectors (§11): a conforming kernel shows each view only what its visibility allows and redacts the listed fields. Board elements are committed files, so redaction in views does not remove data from history. Until a separate store or encryption exists, the vector tests views only, and the specification says so wherever privacy appears.
 
+### 5.5 Files, inputs and staleness *(proposed, 2026-09-29, PC3)*
+
+Found by testing the model against published AI video pipelines (wiki research on the Opus 5.5 video wave; `examples/music-video/`). Their outputs are groups of files, their approvals are about exact content, and their work goes stale when something upstream changes: a new version of a character invalidates every shot drawn with the old one. Three of four studies found this independently.
+
+- **File fields.** A field of type `file` holds a reference to content in the element's artifact store:
+  - its path, the digest of its content, its size and its media type;
+  - a `list` of `file` holds several.
+
+  A file may be a **part set**: indexed parts (frames, chunks) with one digest per part and a declared count. A set is complete only when every part is present. A tool that reads an incomplete set fails with `incomplete` rather than using what exists, so an encode never stops silently at the first missing frame.
+- **Approvals bind content.** The digest an approval binds (§5.2, §6.4) includes the content digest of every file field. Approving a storyboard approves exactly that shots file, and a changed file voids the approval like any other field.
+- **Provenance and licence.** A file field records who or what wrote it (a tool invocation, a run, a person, an external event), and may carry `licence` and `attribution`. The guard `licence.cleared` passes when every file the transition names has a licence the project admits; a `publish` transition requires it (§6.15).
+- **Inputs.** A type may declare `inputs`: fields of other elements it is made from, named through a `ref` field or the parent. Examples: `plate.pick` for a clip, `lead.canon` for a plate. When the element's work is accepted, the kernel pins the digest of every input.
+  - **`inputs.fresh`** is a guard that passes while every pinned input still has the pinned digest.
+  - **`input.superseded`** is an event the kernel emits on every element whose pinned input changed. A workflow routes it like any event, for example from `picking` back to `prompting`.
+  - **Reopening.** A type may declare `reopen_on_superseded: <state>`, and the kernel then reopens a terminal element into that state. Reopenings count against a `limit` like any loop, and an approval the element held is voided.
+  - **Impact before a swap.** Before a person approves a change to an element that others pin, the kernel reports the elements that would go stale and the sum of their declared cost fields and estimates. Replacing a character then shows what redoing its shots will cost.
+- **Superseding** is a kernel link, not a text field. A new element that `supersedes` an accepted one inherits its place as an input. The dependents of the old one receive `input.superseded` naming the new one, and the old one becomes read-only.
+- **Reuse by content.** A tool binding may declare `reuse: "inputs"`. An invocation whose tool, recorded fields and pinned inputs have the same digests as an earlier successful one then reuses its outputs and receipt instead of running again. Re-entering a paid state with unchanged inputs is never charged twice.
+
 ## 6. Workflows
 
 ### 6.1 States *(decided)*
@@ -666,6 +685,21 @@ Found by expressing a real music-video production as a playbook (`examples/music
 
 The schema follows when these are adopted.
 
+### 6.11.2 Long-running tools, machine resources and sandboxes *(proposed, 2026-09-29, PC3)*
+
+- **A pinned tree.** A tool runs in a clean checkout of the version in force at the element's recorded revision, with its pinned inputs materialized, as a local check set does (§6.12), never in the live working tree. Its evidence names the tree, the provider identity and the toolchain versions the provider reports.
+- **Progress and resume.**
+  - A binding may declare `resumable: true`. The provider keeps a checkpoint under the invocation's key, and the executor invokes it again with the same key after a crash, a restart or a lost lease; the provider continues from the checkpoint.
+  - Typed progress lines (a fraction and a phase) are recorded and shown.
+  - With `progress_timeout`, the deadline is the time without progress rather than the total run time, so a 23-minute render is not killed at ten.
+- **Late results.** A result that arrives for the same key after `tool.failed` with the reason `timeout` is recorded, and the kernel emits `tool.late-result`. A workflow may route it like the late supplier confirmation of the cafe example.
+- **Machine resources.** A binding declares the resources it needs by name, for example `gpu`, `render` or `browser:director`. The operator's `runtimes.toml` declares each resource's capacity on this machine (§2.3). The executor leases the resources before running and queues otherwise, and it releases them on exit, crash and cancel. This replaces `policy.wip.per_state` as a stand-in for machine limits: one GPU shared by renders, analysis and lip-sync is a lease, not a process rule.
+- **Quality tiers.** A binding may declare `tiers`, for example `preview` and `final`. The tier is part of the invocation key and of its evidence. A guard or a check set may require a tier, and preview evidence never satisfies a requirement for `final`, as dream evidence never counts (§6.13).
+- **Tools that run element content.** A binding that executes code an agent wrote, such as a renderer or a scene engine, declares `executes: "element-content"`.
+  - The executor runs it in a sandbox profile: no network unless the binding declares it, writes only to the invocation's artifact directory, no credentials, and a CPU and memory cap.
+  - The checks such a tool applies come from the binding and the version in force, never from files the element produced, so a scene cannot switch off its own checks.
+- **Readiness.** A provider may declare a `probe` command. The kernel runs it when a version that binds the tool takes effect, and before the first entry into a state the tool owns on a machine. A failing probe refuses the entry with `tool_not_ready` and the probe's reason, such as a missing browser or a GPU backend that falls back to software, instead of failing in the middle of a run.
+
 ### 6.12 Check sets *(decided 2026-09-24)*
 
 Evidence that a machine produces for delivery — tests, linters, builds — comes from named **check sets**. The playbook says which set must pass where; the project says how and where each set runs.
@@ -728,6 +762,54 @@ A process can be rehearsed before it is trusted with the real world: a new playb
 - **Uses:** rehearsing a new or changed process before its version takes effect; the nightly offline cycle; training and evaluating agents and roles; speculative planning; safe demos; red-team exercises against a process.
 - **Precedent.** task-board already has a development-only fault injector for provider limits, `internal/limitsimulate`, which arms a token and captures what would have been sent instead of sending it. Dream mode generalizes the idea to every tool a process uses.
 - **Open** (§17.3 item 19): how a dream is scoped (an element, a workflow, a whole process), how long its sandbox lives, whether a project may require a dream rehearsal before a structure change is offered for confirmation, and how dream profiles are packaged (item 16).
+
+### 6.14 Budgets, parameters and waves *(proposed, 2026-09-29)*
+
+- **Units other than money.** A budget, in a grant (§4.2) or in `policy.budgets`, sums one of:
+  - a declared numeric field, such as a `money` field in its currency;
+  - a measured quantity: `tokens` and `minutes`, which the session host and the executor measure per run and invocation;
+  - provider `credits`, reported by a tool's receipt (§6.11.1).
+- **`policy.budgets`** sets limits per container type, over the container's lifetime or a period. Examples: `{ "type": "video", "sum": "cost", "max": 150 }`, `{ "type": "chapter", "measure": "tokens", "max": 2000000 }`.
+  - At 90 % the owner is notified.
+  - At 100 % new entries into agent- and tool-owned states under that container are held.
+  - An escalation to a person is never held, as for `wip` (§6.8).
+- **State budgets.** An agent-owned state may declare `budget: { "tokens": …, "minutes": … }`. The session host enforces it as it enforces harness budgets: a wrap-up notice at 90 %, then a pause and a message to the orchestrator at 100 %.
+- **Measured estimates.** An estimate dimension may declare `scale: "measure"` with a `unit`, for example seconds of generated video, so capacity rules sum real units instead of points.
+- **Parameters in two more places** (extends §7.3):
+  - the comparison value of a `field` guard, such as a platform's maximum duration or a lip-sync threshold;
+  - the `settings` a tool binding declares, which the executor passes to the tool on standard input.
+
+  The new parameter types are `number` and `string`. A parameter still never changes who owns a state, which states exist or where a transition leads.
+- **Grants tied to a plan.** A spending grant may name an element and bind its approval digest: a plan, such as a storyboard with its shots file. The grant then covers spending only on that element's descendants while the digest holds. A changed plan suspends the grant until the person confirms it again.
+- **Waves.** A `create` action with `per` may declare `waves: { "sizes": [2, 4, 8, 10], "barrier": "<state>" }`.
+  - The kernel creates the first batch.
+  - When every element of a batch is terminal, the parent enters the barrier state, usually owned by a reviewer or a person.
+  - The next batch is created on the barrier's exit that names `continue_waves`.
+  - A batch with a failed element does not grow the next one.
+
+### 6.15 Publishing and the outside world *(proposed, 2026-09-29)*
+
+The kernel gets hooks only. Platform work (uploads, per-platform formats, release scheduling, rights) belongs to a publishing module, as development machinery belongs to the delivery module (§6.10).
+
+- **`publish` risk.** A transition that releases something outside the process, such as a post, an upload or a message to customers, is marked `risk: "publish"`. `policy.signatures` may require a signed human act for it, and `licence.cleared` (§5.5) must pass for every file it releases.
+- **Absolute time.** A trigger may be `on: { "at": "<field>" }`: the transition fires when the time in the named `datetime` field arrives, in the time zone the field records. This is how a release is scheduled.
+- **External data.** A field may declare its `source` (a declared external event or a tool) and a `max_age`. The guard `data.fresh` passes when every such field on the element was recorded within its `max_age`, so an explainer is refused while its numbers are stale.
+- **Metrics after publishing** arrive as declared, signed external events (§6.9) that write declared fields. Choosing between variants is then an ordinary `field` guard on those fields, after a timer.
+- **Intake.** A declared external event may create an element of a named type, with its payload mapped to declared fields (`events.<name>.creates`), subject to `policy.wip` and the process's privacy. A brief sent from a form or a channel then starts the process without a person typing it into the board.
+- **Per-platform versions** are child elements created per a list of platforms. Each carries its limits, such as length, aspect ratio, loudness and file size, as parameters.
+
+### 6.16 Review quality *(proposed, 2026-09-29)*
+
+- **Typed findings.** A reviewer's verdict may carry findings. Each has:
+  - `where`: a time code, a frame range, a file and line, or a field;
+  - `problem` and `fix`;
+  - a `severity`.
+
+  The run of the fixing state receives them as structured input, and a `verdict` guard may match the highest severity. Blind helpers answer in the same shape, plus a `score` for each sibling they judge (§4.2).
+- **What could not be verified.** An outcome may carry `unverified`, a typed list of claims the run could not check. The guard `unverified.empty` passes only when the list is empty; a workflow routes a non-empty list to a person or a verifier.
+- **Seams between siblings.** Parallel siblings, such as chapters, meet at seams. A parent checks them in a `seams` state after `children.terminal`, owned by a reviewer or a tool. This needs no new mechanism, and the generality vectors test it as a pattern (§11).
+- **Write scopes.** An agent-owned state may declare `writes`: path patterns, relative to the execution root, that its runs may change, for example one chapter file per animator. The delivery module's run write boundary enforces them as it enforces the Story worktree (§6.8).
+- **Model needs.** The `capabilities` of the needs vocabulary gain `vision`, `video-input` and `audio-input`, which the model registry must carry (skill-agents-management). A reviewer of rendered frames `require`s `vision` (§9). One study's machine checks all passed on a render whose character faced away from the camera; only a review of the frames caught it.
 
 ## 7. Extension and composition
 
@@ -1337,6 +1419,19 @@ H4 (keep the effort floor), H6 (the demos and the PC rows) and H8 (one owner per
     - Limits: only formalized statements are checked, and a wrong formalization is the main risk, so a person or the refuter reviews every formal statement, and a project starts with a small vocabulary (wiki `research/verifiable-process-properties.md`).
 19. **Dream mode details** (§6.13). Entry is proposed in v4.3: a `dreams` capability, `policy.dreams`, park, dream profile, resume. Open are how a dream is scoped (an element, a workflow, a whole process), how long its sandbox lives, whether a project may require a dream rehearsal before a structure change is offered for confirmation, and how a role's dream profile is packaged with its role profile (item 16).
 20. **Tool outputs, receipts and assisted tools** (§6.11.1). Proposed on 2026-09-28 for PC3. Open: the output block's format on standard output, a grant's tolerance for receipts above the approved amount, and how an assisted request is shown on the phone and at the terminal.
+21. **Files and staleness** (§5.5). Open:
+    - where artifacts live (a content-addressed store, Git LFS, or both) and how long they are kept;
+    - which transitions pin inputs, and how deep a reopening may cascade before it asks a person;
+    - how the impact report reads cost when elements declare no cost field.
+22. **Tools over time and resources** (§6.11.2). Open:
+    - the checkpoint contract a resumable provider implements;
+    - resource leases across machines (with waggle's leases, CM2);
+    - the sandbox profile on each operating system (a container, a separate account, or both; curator-trust §12).
+23. **Budgets and waves** (§6.14). Open:
+    - whether token and minute budgets per container need the Keeper, or the session host is enough;
+    - how a wave's failure policy is declared beyond "do not grow".
+24. **The publishing module** (§6.15). Its scope, its first platforms, and who owns rights and licence checks.
+25. **Typed findings and helper answers** (§6.16): their schema, delivered with the provider modules in PC1.
 
 **What this means for PC1.** PC1 can start: everything it implements is decided or has a stated default. Item 13 is decided, so the classification of §2.4 is capability coverage. PC1 ships the trust component as a guardrail stub; the mechanisms of [`trust.md`](https://github.com/relux-works/curator-trust/blob/main/spec/trust.md) arrive in PC3. The gates on later work are these:
 
@@ -1712,3 +1807,16 @@ Proposed on 2026-09-28 from the music-video example:
 | Receipts: the amount actually charged reconciles the delegation budgets; a missing receipt is an unknown outcome, never free | §6.11.1 |
 | Assisted tools: a tool may ask a person mid-run and wait; a tool that uses a person's own session runs under that person's account | §6.11.1 |
 | Open item 20 | §17.3 |
+
+## 33. Change log: v4.6 → v4.7
+
+Proposed on 2026-09-29 after testing the model against published AI video pipelines: the music-video example, a one-prompt chapter-animated video, a skill that produces motion-graphics videos in waves, an agent 3D video toolkit, and three catalogs of cases (wiki research). The model held: every pipeline's stages, roles, judges, tools, spending and loops were expressible. The gaps were about artifacts, long-running tools, units, the outside world and review.
+
+| Change | Where |
+| --- | --- |
+| File fields with content digests and part sets; approvals bind content; provenance and licence; pinned inputs, `inputs.fresh`, `input.superseded`, reopening, impact before a swap, superseding as a link, reuse by content | §5.5 |
+| Tools run on a pinned tree; progress, resume and late results; machine resources as leases; quality tiers; sandboxes for tools that run element content; readiness probes | §6.11.2 |
+| Budgets in money, tokens, minutes and credits, per container and per state; measured estimates; parameters as guard thresholds and tool settings; grants tied to a plan; waves | §6.14 |
+| `publish` risk, absolute-time triggers, external data with freshness, metrics as signed events, intake from events, per-platform versions; platform work in a publishing module | §6.15 |
+| Typed findings, the unverified list, seams, write scopes, `vision`, `video-input` and `audio-input` needs | §6.16 |
+| Open items 21–25 | §17.3 |

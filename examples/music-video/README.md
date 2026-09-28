@@ -48,7 +48,7 @@ Both validate against [`../../schema/playbook-v1.schema.json`](../../schema/play
 
 ## Gaps this example found
 
-Items 1–3 are now proposed for PC3 in spec §6.11.1 (DRAFT v4.6).
+Items 1–3 are now proposed for PC3 in spec §6.11.1 (DRAFT v4.6); items 4–6 in §6.14 and §6.16 (DRAFT v4.7), which also cover files, pinned inputs and staleness (§5.5) and long-running tools on machine resources (§6.11.2).
 
 1. **Tool results as fields.** `sync.check` knows where a clip diverged and `clip.generate` knows what it actually cost, but a tool today reports only pass or fail plus evidence. Proposed: a tool may declare output fields that the kernel writes from its result (`diverged_at`, the actual `cost`), so guards, ceilings and later briefs read them.
 2. **Actual spending against the budget.** The ceiling reads the estimated cost at approval; the provider's receipt should reconcile the budget. This joins the open item on unknown outcomes and receipts of side-effecting tools.
