@@ -822,8 +822,8 @@ The kernel gets hooks only. Platform work (uploads, per-platform formats, releas
   - `scope: "changed"` limits the mutants to the lines the revision changed, and the executor hands those ranges to the commands. `scope: "all"` mutates the whole tree.
   - The commands report killed, survived and timed-out mutants in the tool output format (§6.11.1). A timeout counts as killed, as mutation tools count it.
   - `delivery.checks-passed` passes only when the killed share reaches `min_killed`, which may be a parameter (§6.14).
-  - Each survivor reaches the producer as a typed finding: the file and line, the change, and the problem that no test fails with it.
-  - A survivor that changes no behaviour, an *equivalent* mutant, may be marked so in the reviewer's verdict with a reason. The mark is a finding like any other, and the next review sees it.
+  - Each survivor is recorded in the evidence as a typed finding: the file and line, the change, and the problem that no test fails with it. The producer receives these findings as it receives a reviewer's.
+  - A survivor that changes no behaviour, an *equivalent* mutant, may be marked so in the reviewer's verdict with a reason. The mark is a finding like any other, and the next review sees it. A marked mutant leaves the share at the set's next run, for example at landing; the producer cannot mark its own. A `min_killed` below 1 leaves room for equivalent mutants that nobody has marked yet.
   - `mutation` belongs to the set's definition in force (§6.12), so a producer cannot lower `min_killed` or narrow the scope for its own revision.
   - A reviewer may also attach targeted mutants to its verdict: a change to the code a guard protects, and the run that kills it. They are the strongest evidence that the tests pin a gate, and today's task-board reviewers already produce them.
 - **Reviewer calibration with seeded defects** *(proposed, 2026-09-29)*. The defects a reviewer found say nothing about the ones it missed. Seeded defects make its recall measurable.
