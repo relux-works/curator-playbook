@@ -17,7 +17,7 @@ Both validate against [`../../schema/playbook-v1.schema.json`](../../schema/play
 | Images | 188 prompts, 636 images, 130 plates used |
 | Clips | 47 clips plus 30 continuation takes, 91 submissions, about 93 USD |
 | Agents | one production-lead session plus fan-out workflows: 31 agents for research and lyrics, 7 for the storyboard, 40 runs for animation |
-| Tokens | 1.4 billion, about 626 USD at list prices; 96 % were cache re-reads of a ~565k-token main session |
+| Tokens | 1.4 billion, about 626 USD at list prices; 96 % were cache re-reads across all calls. By cost: the animation agents 48 %, the main session 30 % (its context sat around 565k tokens), storyboard 15 %, research and lyrics 7 % |
 | Director | about 50 messages: taste calls, checkpoints, a few decisive notes |
 
 ## How the process maps
@@ -41,7 +41,7 @@ Both validate against [`../../schema/playbook-v1.schema.json`](../../schema/play
 
 ## What the model makes better
 
-- **Tools run outside the orchestrator's context.** In the original, the main session ran every generator, analysis and render script itself, and its context grew to about 565k tokens; 96 % of 1.4 billion tokens were re-reads. Here those steps are tool states run by the kernel's executor: the orchestrator reads a result, not a transcript.
+- **Tools run outside the orchestrator's context.** In the original, the main session ran every generator, analysis and render script itself, and its context grew to about 565k tokens. Every call re-reads its whole context from the cache, and such re-reads were 96 % of all 1.4 billion tokens; the main session alone was 30 % of the cost. Here those steps are tool states run by the kernel's executor: the orchestrator reads a result, not a transcript, so its context and every re-read stay smaller.
 - **The fan-outs are declared, visible and resumable.** The original ran them as throwaway scripts in one session. Here each draft, sweep, plate, clip and chapter is an element with its own state on the board, so a crash resumes at the element, not at the script.
 - **Spending is bounded by the kernel**, not by a sentence in a prompt: the ceiling per clip and the director's budget are checked before any generation starts.
 - **Every loop is a parameter** a project tunes, including an unbounded director review of the cut.
