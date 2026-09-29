@@ -947,7 +947,7 @@ Every role directory is a real skill: instructions in `SKILL.md`, optional `refe
 
 ### 8.2 One Skillfile entry installs the process
 
-Curator's Skillfile schema 2 (curator-spec `protocol/skillfile-sources.md`) declares repository sources and selects skills from them: an individual `{name, from, directory}` selector or a collection `{from, directory, include, exclude?}` selector over immediate child directories. It exists in Curator behind a flag; PC2 uses it (§15).
+Curator's Skillfile schema 2 (curator-spec `protocol/skillfile-sources.md`) declares repository sources and selects skills from them: an individual `{name, from, directory}` selector or a collection `{from, directory, include, exclude?}` selector over immediate child directories. Curator enables it by default since v0.15.0-rc.2; PC2 uses it (§15).
 
 ```json
 {
@@ -975,7 +975,7 @@ The first selector installs the orchestrator and every role of the cafe; the pro
 
 Five changes belong to Curator, not to this module:
 
-1. Release Skillfile schema 2 from its flag.
+1. Release Skillfile schema 2 from its flag. *Done: enabled by default in Curator v0.15.0-rc.2.*
 2. `dependencies.skills` entries in a skill manifest (curator-spec `protocol/core.md` §4.4: `git`, exact `ref`, activation `mode`, command narrowing) gain the same `directory` selection as schema 2 individual selectors, with the same containment rules, so an orchestrator can depend on a tool provider in its own repository and a playbook on a role in a subfolder of another repository.
 3. **Command-only installs** (curator-spec issue #95, curator issue #95): a direct declaration with activation `runtime` publishes a skill's commands without its context, so a package's command line is on the person's `PATH` while its role instructions stay in its profile. The person spells it `curator global add <skill> --commands-only`; the lock may still record the activation as `runtime`. This replaced the item's earlier content, activation `on-demand` and a skills launch channel (curator-spec issue #91, curator issue #91), withdrawn on 2026-09-25 in favour of per-role profiles (§8.1).
 4. Registry search for agents: a command that searches the Curator registry and reports, for each skill, what it does, what it exports and which exact package identities its audit covers, so an install can check that the identity it locks is the audited one (§8.6).
@@ -1369,7 +1369,7 @@ Specifications use technical terms, and each specification opens with a term map
 - relaxing a requirement permanently only in the project file, and temporarily through `ask` for the approver's own runs (amended in v3.4: an operator may also relax permanently for their own runs through an open-ended standing answer, §17.2 row 25);
 - guards, actions and events from modules; the delivery module and its invariants; `task-board tick` until the main loop;
 - `extends` and `uses` with slots and membership links;
-- roles as skills, and playbooks as skill collections installed by one Skillfile schema 2 selector, with Curator releasing schema 2 and adding `directory` to `dependencies.skills`; package names `curator-playbook-<purpose>`;
+- roles as skills, and playbooks as skill collections installed by one Skillfile schema 2 selector, with Curator releasing schema 2 (done in v0.15.0-rc.2) and adding `directory` to `dependencies.skills`; package names `curator-playbook-<purpose>`;
 - the static validator with portable and machine checks; the generality vectors, including per-process privacy as a views vector; the refuter;
 - the demos dev-cycle, bug-hunt and Scrum right after PC1; PC4 dropped; the default playbook as the PC1 target;
 - on 2026-09-25: the user-facing names of the term map; the trust framework, whose mechanism lives in [`trust.md`](https://github.com/relux-works/curator-trust/blob/main/spec/trust.md), since v4.1 in relux-works/curator-trust; the principles of §1; capabilities, batched touches and yolo mode as the answer to which changes wait for a person (§2.4).
@@ -1872,3 +1872,5 @@ Proposed on 2026-09-29 from the operators' call of 2026-09-28. Mutation testing 
 | Reviewer calibration: a seeder plants sealed defects by class in a copy of a candidate; calibration runs in dreams; optional seeded reviews with the `review.recall` guard; an advisory estimate of the defects that remain | §6.16, §6.13 |
 | The need term `recall`, measured or unknown, never declared | §9 |
 | Open item 26 | §17.3 |
+
+Errata of 2026-09-29, no version change: Curator v0.15.0-rc.2 enables Skillfile schema 2 by default (§8.2, §8.3 item 1, §17). Found by the talk deck's review against the release.
