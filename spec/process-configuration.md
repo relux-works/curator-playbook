@@ -1463,7 +1463,7 @@ H4 (keep the effort floor), H6 (the demos and the PC rows) and H8 (one owner per
     - resource leases across machines (with waggle's leases, CM2);
     - the sandbox profile on each operating system (a container, a separate account, or both; curator-trust §12).
 23. **Budgets and waves** (§6.14). Open:
-    - whether token and minute budgets per container need the Keeper, or the session host is enough;
+    - whether token and minute budgets per container need the main loop, or the session host is enough;
     - how a wave's failure policy is declared beyond "do not grow".
 24. **The publishing module** (§6.15). Its scope, its first platforms, and who owns rights and licence checks.
 25. **Typed findings and helper answers** (§6.16): their schema, delivered with the provider modules in PC1.
