@@ -128,13 +128,14 @@ The four operator files are TOML because people edit them by hand, and none of t
 
 ```toml
 [bindings]
+"@orchestrator"       = { run = "claude/claude-opus-5-5", effort = "high" }
 "dev-cycle/developer" = { run = "codex/gpt-6-luna", effort = "max", profile = "dev-cycle-developer" }
 "*/refuter"           = { run = "claude/claude-opus-5-5", effort = "high" }
 "@reviewer"           = { run = ["claude/claude-opus-5-5", "codex/*"], effort = "medium..high" }
-"@producer"           = { run = "codex/gpt-6-luna", effort = "high..max" }
+"@producer"           = { run = ["claude/claude-sonnet-5-5", "codex/gpt-6-luna"], effort = "high..max" }
 
 [allow]
-models  = ["codex/*", "claude/claude-opus-5-5", "local/qwen3.6-27b"]
+models  = ["codex/*", "claude/claude-opus-5-5", "claude/claude-sonnet-5-5", "local/qwen3.6-27b"]
 billing = ["subscription", "local"]
 
 [windows]
@@ -154,6 +155,7 @@ skills  = "user"
 ```
 
 - One `[bindings]` table; keys go from specific to general: `<playbook>/<role>`, then `*/<role>`, then `@<capability>`. The most specific matching key wins.
+- The example follows the operators' call of 2026-09-28 *(decided)*: Opus 5.5 orchestrates, and Sonnet 5.5 (`claude-sonnet-5-5`, alias `sonnet`) is the worker. Luna never orchestrates and stays an acceptable, slow worker. The effort values are illustrative.
 - `run` is one `<runtime>/<model>` or an ordered array of candidates; a pattern such as `codex/*` matches every registry row of that runtime. The resolver takes the first candidate that is admitted, available and satisfies the role's needs; a candidate that is unavailable moves the choice to the next one. The selection records which candidate won and why each earlier one did not.
 - `effort` is one value or a range (`"medium..high"`). A project floor (`policy.effort_floor`, §6.8) narrows it from below per model row (§9); the selection records the effort it used.
 - `profile` names the Curator environment profile the role's runs launch with (§8.1); `spawn --profile` overrides it for one run *(decided 2026-09-28)*.
